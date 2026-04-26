@@ -1,26 +1,290 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&display=swap');
 
+/* ── TYT Design Tokens ─────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand colors */
+  --red:          #b40000;
+  --red-dark:     #8a0000;
+  --red-light:    #cc0000;
+  --gold:         #e0bf5c;
+  --gold-dark:    #c9a84c;
+  --yellow:       #fbd107;
+
+  /* Backgrounds */
+  --bg-dark:      #111111;
+  --bg-card:      #1c1c1c;
+  --bg-input:     #141414;
+  --bg-hover:     #242424;
+
+  /* Text */
+  --text-primary: #ffffff;
+  --text-muted:   #999999;
+  --text-faint:   #555555;
+
+  /* Borders */
+  --border:       #2a2a2a;
+  --border-focus: #e0bf5c;
+
+  /* Feedback */
+  --error:        #ff4444;
+  --error-bg:     #2a1010;
+  --success:      #44bb44;
+  --success-bg:   #102a10;
+
+  /* Typography */
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-accent:  'Playfair Display', serif;
+
+  /* Spacing */
+  --radius-sm:    4px;
+  --radius-md:    8px;
+  --radius-lg:    12px;
+
+  /* Shadows */
+  --shadow-card:  0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-red:   0 0 0 3px rgba(180, 0, 0, 0.2);
+  --shadow-gold:  0 0 0 3px rgba(224, 191, 92, 0.2);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Typography ────────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+h1 { font-size: clamp(2rem, 5vw, 3rem); }
+h2 { font-size: clamp(1.5rem, 4vw, 2.2rem); }
+h3 { font-size: clamp(1.2rem, 3vw, 1.6rem); }
+
+p {
+  font-family: var(--font-body);
+  line-height: 1.7;
+}
+
+a {
+  color: var(--gold);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+a:hover {
+  color: var(--yellow);
+}
+
+/* ── Form Elements ─────────────────────────────────────────────────────────── */
+.tyt-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.tyt-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.tyt-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-gold);
+}
+
+.tyt-input::placeholder {
+  color: var(--text-faint);
+}
+
+.tyt-input.error {
+  border-color: var(--error);
+  box-shadow: var(--shadow-red);
+}
+
+select.tyt-input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+.tyt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1.5rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  text-decoration: none;
+}
+
+.tyt-btn:active {
+  transform: scale(0.98);
+}
+
+.tyt-btn-primary {
+  background: var(--red);
+  color: #ffffff;
+}
+
+.tyt-btn-primary:hover {
+  background: var(--red-light);
+  color: #ffffff;
+  box-shadow: var(--shadow-red);
+}
+
+.tyt-btn-primary:disabled {
+  background: var(--red-dark);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.tyt-btn-secondary {
+  background: transparent;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+}
+
+.tyt-btn-secondary:hover {
+  background: rgba(224, 191, 92, 0.1);
+  color: var(--yellow);
+  border-color: var(--yellow);
+}
+
+.tyt-btn-gold {
+  background: var(--gold);
+  color: #111111;
+}
+
+.tyt-btn-gold:hover {
+  background: var(--yellow);
+  color: #111111;
+}
+
+.tyt-btn-full {
+  width: 100%;
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────────── */
+.tyt-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 2rem;
+  box-shadow: var(--shadow-card);
+}
+
+/* ── Feedback ──────────────────────────────────────────────────────────────── */
+.tyt-error {
+  background: var(--error-bg);
+  border: 1px solid var(--error);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  color: var(--error);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+
+.tyt-success {
+  background: var(--success-bg);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  color: var(--success);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+
+/* ── Utility ───────────────────────────────────────────────────────────────── */
+.tyt-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-gold {
+  color: var(--gold);
+}
+
+.text-red {
+  color: var(--red);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-accent {
+  font-family: var(--font-accent);
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
 }

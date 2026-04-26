@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -33,75 +34,28 @@ function LoginForm() {
 
   return (
     <form onSubmit={handleLogin}>
-
-      {error && (
-        <div style={{
-          background: '#2d1a1a',
-          border: '1px solid #c0392b',
-          borderRadius: '3px',
-          padding: '0.75rem 1rem',
-          marginBottom: '1.5rem',
-          color: '#e74c3c',
-          fontSize: '0.875rem',
-          fontFamily: 'Georgia, serif',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && <div className="tyt-error">{error}</div>}
 
       <div style={{ marginBottom: '1.25rem' }}>
-        <label style={{
-          display: 'block',
-          color: '#8a9ab0',
-          fontSize: '0.75rem',
-          letterSpacing: '0.15em',
-          textTransform: 'uppercase',
-          marginBottom: '0.5rem',
-          fontFamily: 'Georgia, serif',
-        }}>
-          Email Address
-        </label>
+        <label className="tyt-label">Email Address</label>
         <input
           type="email"
           value={email}
           onChange={e => setEmail(e.target.value)}
           required
           placeholder="you@example.com"
-          style={{
-            width: '100%',
-            background: '#0f1923',
-            border: '1px solid #2a3a50',
-            borderRadius: '3px',
-            padding: '0.75rem 1rem',
-            color: '#ffffff',
-            fontSize: '0.95rem',
-            fontFamily: 'Georgia, serif',
-            outline: 'none',
-            boxSizing: 'border-box',
-            transition: 'border-color 0.2s',
-          }}
-          onFocus={e => e.target.style.borderColor = '#c9a84c'}
-          onBlur={e => e.target.style.borderColor = '#2a3a50'}
+          className="tyt-input"
         />
       </div>
 
       <div style={{ marginBottom: '1.75rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <label style={{
-            color: '#8a9ab0',
-            fontSize: '0.75rem',
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-            fontFamily: 'Georgia, serif',
-          }}>
-            Password
-          </label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+          <label className="tyt-label" style={{ marginBottom: 0 }}>Password</label>
           <a href="/forgot-password" style={{
-            color: '#c9a84c',
-            fontSize: '0.8rem',
-            textDecoration: 'none',
-            fontFamily: 'Georgia, serif',
+            fontFamily: 'var(--font-accent)',
             fontStyle: 'italic',
+            fontSize: '0.85rem',
+            color: 'var(--gold)',
           }}>
             Forgot password?
           </a>
@@ -112,46 +66,17 @@ function LoginForm() {
           onChange={e => setPassword(e.target.value)}
           required
           placeholder="••••••••"
-          style={{
-            width: '100%',
-            background: '#0f1923',
-            border: '1px solid #2a3a50',
-            borderRadius: '3px',
-            padding: '0.75rem 1rem',
-            color: '#ffffff',
-            fontSize: '0.95rem',
-            fontFamily: 'Georgia, serif',
-            outline: 'none',
-            boxSizing: 'border-box',
-            transition: 'border-color 0.2s',
-          }}
-          onFocus={e => e.target.style.borderColor = '#c9a84c'}
-          onBlur={e => e.target.style.borderColor = '#2a3a50'}
+          className="tyt-input"
         />
       </div>
 
       <button
         type="submit"
         disabled={loading}
-        style={{
-          width: '100%',
-          background: loading ? '#8a7030' : '#c9a84c',
-          border: 'none',
-          borderRadius: '3px',
-          padding: '0.85rem',
-          color: '#0f1923',
-          fontSize: '0.85rem',
-          fontWeight: 'bold',
-          letterSpacing: '0.15em',
-          textTransform: 'uppercase',
-          fontFamily: 'Georgia, serif',
-          cursor: loading ? 'not-allowed' : 'pointer',
-          transition: 'background 0.2s',
-        }}
+        className="tyt-btn tyt-btn-primary tyt-btn-full"
       >
         {loading ? 'Signing in...' : 'Sign In'}
       </button>
-
     </form>
   );
 }
@@ -160,63 +85,50 @@ export default function LoginPage() {
   return (
     <main style={{
       minHeight: '100vh',
-      background: '#0f1923',
+      background: 'var(--bg-dark)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: "'Georgia', serif",
-      padding: '1rem',
+      padding: '1.5rem',
     }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '420px',
-      }}>
+      <div style={{ width: '100%', maxWidth: '440px' }}>
 
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <div style={{
-            display: 'inline-block',
-            border: '2px solid #c9a84c',
-            padding: '0.4rem 1.2rem',
-            marginBottom: '1rem',
-          }}>
-            <span style={{
-              color: '#c9a84c',
-              fontSize: '0.7rem',
-              letterSpacing: '0.3em',
-              textTransform: 'uppercase',
-              fontFamily: "'Georgia', serif",
-            }}>
-              Triboro Youth Theatre
-            </span>
-          </div>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <Image
+            src="/images/tyt-logo.png"
+            alt="Triboro Youth Theatre"
+            width={200}
+            height={200}
+            style={{ objectFit: 'contain' }}
+            priority
+          />
           <h1 style={{
-            color: '#ffffff',
-            fontSize: '1.8rem',
-            fontWeight: 'normal',
-            margin: '0 0 0.4rem',
-            letterSpacing: '0.02em',
+            fontFamily: 'var(--font-display)',
+            fontSize: '2.2rem',
+            fontWeight: 800,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--text-primary)',
+            marginTop: '0.5rem',
+            marginBottom: '0.25rem',
           }}>
             Family Portal
           </h1>
           <p style={{
-            color: '#8a9ab0',
-            fontSize: '0.9rem',
-            margin: 0,
-            fontFamily: "'Georgia', serif",
+            fontFamily: 'var(--font-accent)',
             fontStyle: 'italic',
+            color: 'var(--text-muted)',
+            fontSize: '1rem',
           }}>
             Sign in to manage your registrations
           </p>
         </div>
 
-        <div style={{
-          background: '#1a2535',
-          border: '1px solid #2a3a50',
-          borderRadius: '4px',
-          padding: '2rem',
-        }}>
+        {/* Card */}
+        <div className="tyt-card">
           <Suspense fallback={
-            <div style={{ color: '#8a9ab0', textAlign: 'center', fontFamily: 'Georgia, serif' }}>
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>
               Loading...
             </div>
           }>
@@ -224,30 +136,31 @@ export default function LoginPage() {
           </Suspense>
         </div>
 
+        {/* Sign up */}
         <p style={{
           textAlign: 'center',
-          color: '#8a9ab0',
-          fontSize: '0.875rem',
+          color: 'var(--text-muted)',
+          fontSize: '0.9rem',
           marginTop: '1.5rem',
-          fontFamily: 'Georgia, serif',
+          fontFamily: 'var(--font-body)',
         }}>
           New to TYT?{' '}
           <a href="/signup" style={{
-            color: '#c9a84c',
-            textDecoration: 'none',
+            fontFamily: 'var(--font-accent)',
             fontStyle: 'italic',
+            color: 'var(--gold)',
           }}>
             Create an account
           </a>
         </p>
 
+        {/* Footer */}
         <p style={{
           textAlign: 'center',
-          color: '#4a5a6a',
+          color: 'var(--text-faint)',
           fontSize: '0.75rem',
           marginTop: '2rem',
-          fontFamily: 'Georgia, serif',
-          fontStyle: 'italic',
+          fontFamily: 'var(--font-body)',
         }}>
           &copy; {new Date().getFullYear()} Triboro Youth Theatre
         </p>
