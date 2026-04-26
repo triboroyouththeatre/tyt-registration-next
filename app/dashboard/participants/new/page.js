@@ -26,29 +26,23 @@ function AddParticipantForm() {
   const [yogLabel, setYogLabel] = useState('');
   const [yogConfirmed, setYogConfirmed] = useState(false);
 
-  // Load reference data
   useEffect(() => {
     async function loadData() {
       const supabase = createClient();
-
       const { data: genderData } = await supabase
         .from('genders')
         .select('*')
         .order('label');
-
       const { data: gradeData } = await supabase
         .from('grade_levels')
         .select('*, seasons(is_active)')
-        .eq('seasons.is_active', true)
         .order('yog');
-
       setGenders(genderData || []);
       setGradeLevels(gradeData || []);
     }
     loadData();
   }, []);
 
-  // Calculate YOG from DOB
   useEffect(() => {
     if (!form.date_of_birth) {
       setForm(f => ({ ...f, yog: '' }));
@@ -59,33 +53,30 @@ function AddParticipantForm() {
 
     const dob = new Date(form.date_of_birth);
     const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth(); // 0-indexed
+    const currentMonth = today.getMonth();
 
-    // School year cutoff: September 1
-    // If current month is Sept or later, use next year as base grade year
-    const schoolYear = month >= 8 ? year + 1 : year;
+    // School year starts Sept 1
+    // If we are before Sept, school year started last calendar year
+    const schoolYearStart = currentMonth >= 8
+      ? today.getFullYear()
+      : today.getFullYear() - 1;
 
-    // Age as of Sept 1 of current school year
-    const sept1 = new Date(schoolYear, 8, 1);
+    const sept1 = new Date(schoolYearStart, 8, 1);
+
+    // Age as of Sept 1 of the current school year
     let ageAtSept = sept1.getFullYear() - dob.getFullYear();
     const mDiff = sept1.getMonth() - dob.getMonth();
     if (mDiff < 0 || (mDiff === 0 && sept1.getDate() < dob.getDate())) {
       ageAtSept--;
     }
 
-    // Grade: age 5 = K, age 6 = 1st, ..., age 18 = 12th
+    // Grade number: 0 = Kindergarten, 12 = 12th grade
     const gradeNum = ageAtSept - 5;
-    let calculatedYog = null;
 
     if (gradeNum >= 0 && gradeNum <= 12) {
-      // YOG = current school year + (12 - gradeNum)
-      calculatedYog = schoolYear + (12 - gradeNum);
-    }
-
-    if (calculatedYog) {
+      // YOG = end of school year they finish 12th grade
+      const calculatedYog = schoolYearStart + 1 + (12 - gradeNum);
       setForm(f => ({ ...f, yog: calculatedYog }));
-      // Find label from grade levels
       const match = gradeLevels.find(g => g.yog === calculatedYog);
       setYogLabel(match?.label || `Class of ${calculatedYog}`);
       setYogConfirmed(false);
@@ -113,8 +104,6 @@ function AddParticipantForm() {
     setLoading(true);
 
     const supabase = createClient();
-
-    // Get current user's family_id
     const { data: { user } } = await supabase.auth.getUser();
     const { data: profile } = await supabase
       .from('profiles')
@@ -156,7 +145,6 @@ function AddParticipantForm() {
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error">{error}</div>}
 
-      {/* Name row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
         <div>
           <label className="tyt-label">
@@ -188,7 +176,6 @@ function AddParticipantForm() {
         </div>
       </div>
 
-      {/* Preferred name */}
       <div style={{ marginBottom: '1.25rem' }}>
         <label className="tyt-label">
           Preferred Name / Nickname{' '}
@@ -206,7 +193,6 @@ function AddParticipantForm() {
         />
       </div>
 
-      {/* DOB */}
       <div style={{ marginBottom: '1.25rem' }}>
         <label className="tyt-label">
           Date of Birth <span style={{ color: 'var(--red)' }}>*</span>
@@ -222,11 +208,10 @@ function AddParticipantForm() {
         />
       </div>
 
-      {/* YOG confirmation */}
       {form.yog && (
         <div style={{
           background: yogConfirmed ? '#0d1a0a' : '#1a1400',
-          border: `1px solid ${yogConfirmed ? 'var(--gold)' : 'var(--gold)'}`,
+          border: '1px solid var(--gold)',
           borderRadius: 'var(--radius-md)',
           padding: '1.25rem',
           marginBottom: '1.25rem',
@@ -263,7 +248,7 @@ function AddParticipantForm() {
           </p>
 
           {!yogConfirmed ? (
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 type="button"
                 onClick={() => setYogConfirmed(true)}
@@ -272,12 +257,7 @@ function AddParticipantForm() {
               >
                 Yes, that&apos;s correct
               </button>
-              <p style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.8rem',
-                color: 'var(--text-muted)',
-                alignSelf: 'center',
-              }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Not right?{' '}
                 <button
                   type="button"
@@ -298,16 +278,12 @@ function AddParticipantForm() {
                 >
                   Re-enter date of birth
                 </button>
-              </p>
+              </span>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ color: 'var(--gold)', fontSize: '1.1rem' }}>✓</span>
-              <span style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.85rem',
-                color: 'var(--gold)',
-              }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--gold)' }}>
                 Confirmed
               </span>
               <button
@@ -332,7 +308,6 @@ function AddParticipantForm() {
         </div>
       )}
 
-      {/* Gender */}
       <div style={{ marginBottom: '1.25rem' }}>
         <label className="tyt-label">
           Gender <span style={{ color: 'var(--red)' }}>*</span>
@@ -353,7 +328,6 @@ function AddParticipantForm() {
 
       <hr className="tyt-divider" />
 
-      {/* Optional contact info */}
       <p style={{
         fontFamily: 'var(--font-accent)',
         fontStyle: 'italic',
@@ -415,8 +389,6 @@ function AddParticipantForm() {
 export default function AddParticipantPage() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
-
-      {/* Nav */}
       <nav style={{
         background: 'var(--bg-card)',
         borderBottom: '1px solid var(--border)',
@@ -429,7 +401,7 @@ export default function AddParticipantPage() {
         top: 0,
         zIndex: 100,
       }}>
-        <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
+        <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <Image
             src="/images/tyt-logo.png"
             alt="Triboro Youth Theatre"
@@ -457,12 +429,11 @@ export default function AddParticipantPage() {
           color: 'var(--text-muted)',
           textDecoration: 'none',
         }}>
-          ‹ Back
+          Back
         </a>
       </nav>
 
       <main style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem 1.5rem' }}>
-
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{
             fontFamily: 'var(--font-display)',
@@ -494,7 +465,6 @@ export default function AddParticipantPage() {
             <AddParticipantForm />
           </Suspense>
         </div>
-
       </main>
     </div>
   );
