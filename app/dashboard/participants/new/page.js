@@ -29,14 +29,19 @@ function AddParticipantForm() {
   useEffect(() => {
     async function loadData() {
       const supabase = createClient();
+
       const { data: genderData } = await supabase
         .from('genders')
         .select('id, label')
         .order('label');
+
+      // Only load grade levels from the active season
       const { data: gradeData } = await supabase
         .from('grade_levels')
-        .select('id, yog, label, season_id')
+        .select('id, yog, label, seasons!inner(is_active)')
+        .eq('seasons.is_active', true)
         .order('yog');
+
       setGenders(genderData || []);
       setGradeLevels(gradeData || []);
     }
@@ -86,7 +91,6 @@ function AddParticipantForm() {
   }
 
   function handlePhoneChange(e) {
-    // Strip everything except digits, limit to 10
     const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
     setForm(f => ({ ...f, phone: digits }));
   }
@@ -215,7 +219,7 @@ function AddParticipantForm() {
         />
       </div>
 
-      {/* YOG confirmation — compact version */}
+      {/* YOG confirmation — compact */}
       {form.yog && (
         <div style={{
           background: yogConfirmed ? '#0d1a0a' : '#1a1400',
@@ -257,7 +261,7 @@ function AddParticipantForm() {
               color: 'var(--text-muted)',
               fontSize: '0.8rem',
             }}>
-              {yogLabel}
+              Current Grade: {yogLabel}
             </p>
           </div>
 
