@@ -29,14 +29,19 @@ function AddParticipantForm() {
   useEffect(() => {
     async function loadData() {
       const supabase = createClient();
+
+      // Load genders directly - no join needed
       const { data: genderData } = await supabase
         .from('genders')
-        .select('*')
+        .select('id, label')
         .order('label');
+
+      // Load grade levels for active season
       const { data: gradeData } = await supabase
         .from('grade_levels')
-        .select('*, seasons(is_active)')
+        .select('id, yog, label, season_id')
         .order('yog');
+
       setGenders(genderData || []);
       setGradeLevels(gradeData || []);
     }
@@ -63,7 +68,7 @@ function AddParticipantForm() {
 
     const sept1 = new Date(schoolYearStart, 8, 1);
 
-    // Age as of Sept 1 of the current school year
+    // Age as of Sept 1 of current school year
     let ageAtSept = sept1.getFullYear() - dob.getFullYear();
     const mDiff = sept1.getMonth() - dob.getMonth();
     if (mDiff < 0 || (mDiff === 0 && sept1.getDate() < dob.getDate())) {
@@ -74,7 +79,6 @@ function AddParticipantForm() {
     const gradeNum = ageAtSept - 5;
 
     if (gradeNum >= 0 && gradeNum <= 12) {
-      // YOG = end of school year they finish 12th grade
       const calculatedYog = schoolYearStart + 1 + (12 - gradeNum);
       setForm(f => ({ ...f, yog: calculatedYog }));
       const match = gradeLevels.find(g => g.yog === calculatedYog);
@@ -145,6 +149,7 @@ function AddParticipantForm() {
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error">{error}</div>}
 
+      {/* Name row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
         <div>
           <label className="tyt-label">
@@ -176,6 +181,7 @@ function AddParticipantForm() {
         </div>
       </div>
 
+      {/* Preferred name */}
       <div style={{ marginBottom: '1.25rem' }}>
         <label className="tyt-label">
           Preferred Name / Nickname{' '}
@@ -193,6 +199,7 @@ function AddParticipantForm() {
         />
       </div>
 
+      {/* DOB */}
       <div style={{ marginBottom: '1.25rem' }}>
         <label className="tyt-label">
           Date of Birth <span style={{ color: 'var(--red)' }}>*</span>
@@ -208,6 +215,7 @@ function AddParticipantForm() {
         />
       </div>
 
+      {/* YOG confirmation */}
       {form.yog && (
         <div style={{
           background: yogConfirmed ? '#0d1a0a' : '#1a1400',
@@ -308,6 +316,7 @@ function AddParticipantForm() {
         </div>
       )}
 
+      {/* Gender */}
       <div style={{ marginBottom: '1.25rem' }}>
         <label className="tyt-label">
           Gender <span style={{ color: 'var(--red)' }}>*</span>
@@ -328,41 +337,52 @@ function AddParticipantForm() {
 
       <hr className="tyt-divider" />
 
+      {/* Optional contact section */}
+      <h3 style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: '1.1rem',
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        color: 'var(--text-primary)',
+        marginBottom: '0.5rem',
+      }}>
+        Optional Participant Contact Information
+      </h3>
+
       <p style={{
-        fontFamily: 'var(--font-accent)',
-        fontStyle: 'italic',
+        fontFamily: 'var(--font-body)',
+        fontWeight: 600,
         color: 'var(--text-muted)',
         fontSize: '0.875rem',
-        marginBottom: '1.25rem',
+        marginBottom: '1.5rem',
         lineHeight: 1.6,
       }}>
-        The following fields are optional. Only complete them if the participant
-        has their own contact information that is different from their parent or guardian.
+        Fill out these fields only if different than their parents/guardians.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.75rem' }}>
-        <div>
-          <label className="tyt-label">Participant Mobile</label>
-          <input
-            type="tel"
-            name="phone"
-            value={form.phone}
-            onChange={handleChange}
-            placeholder="(401) 555-0000"
-            className="tyt-input"
-          />
-        </div>
-        <div>
-          <label className="tyt-label">Participant Email</label>
-          <input
-            type="email"
-            name="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="participant@example.com"
-            className="tyt-input"
-          />
-        </div>
+      <div style={{ marginBottom: '1.25rem' }}>
+        <label className="tyt-label">Participant Mobile</label>
+        <input
+          type="tel"
+          name="phone"
+          value={form.phone}
+          onChange={handleChange}
+          placeholder="(401) 555-0000"
+          className="tyt-input"
+        />
+      </div>
+
+      <div style={{ marginBottom: '1.75rem' }}>
+        <label className="tyt-label">Participant Email</label>
+        <input
+          type="email"
+          name="email"
+          value={form.email}
+          onChange={handleChange}
+          placeholder="participant@example.com"
+          className="tyt-input"
+        />
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
