@@ -29,19 +29,14 @@ function AddParticipantForm() {
   useEffect(() => {
     async function loadData() {
       const supabase = createClient();
-
-      // Load genders directly - no join needed
       const { data: genderData } = await supabase
         .from('genders')
         .select('id, label')
         .order('label');
-
-      // Load grade levels for active season
       const { data: gradeData } = await supabase
         .from('grade_levels')
         .select('id, yog, label, season_id')
         .order('yog');
-
       setGenders(genderData || []);
       setGradeLevels(gradeData || []);
     }
@@ -59,23 +54,17 @@ function AddParticipantForm() {
     const dob = new Date(form.date_of_birth);
     const today = new Date();
     const currentMonth = today.getMonth();
-
-    // School year starts Sept 1
-    // If we are before Sept, school year started last calendar year
     const schoolYearStart = currentMonth >= 8
       ? today.getFullYear()
       : today.getFullYear() - 1;
-
     const sept1 = new Date(schoolYearStart, 8, 1);
 
-    // Age as of Sept 1 of current school year
     let ageAtSept = sept1.getFullYear() - dob.getFullYear();
     const mDiff = sept1.getMonth() - dob.getMonth();
     if (mDiff < 0 || (mDiff === 0 && sept1.getDate() < dob.getDate())) {
       ageAtSept--;
     }
 
-    // Grade number: 0 = Kindergarten, 12 = 12th grade
     const gradeNum = ageAtSept - 5;
 
     if (gradeNum >= 0 && gradeNum <= 12) {
@@ -96,12 +85,23 @@ function AddParticipantForm() {
     setForm(f => ({ ...f, [name]: value }));
   }
 
+  function handlePhoneChange(e) {
+    // Strip everything except digits, limit to 10
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setForm(f => ({ ...f, phone: digits }));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
     if (!yogConfirmed) {
       setError('Please confirm the year of graduation before continuing.');
+      return;
+    }
+
+    if (form.phone && form.phone.length !== 10) {
+      setError('Phone number must be exactly 10 digits.');
       return;
     }
 
@@ -131,7 +131,7 @@ function AddParticipantForm() {
         date_of_birth: form.date_of_birth,
         yog: parseInt(form.yog),
         gender_id: form.gender_id,
-        phone: form.phone.trim() || null,
+        phone: form.phone || null,
         email: form.email.trim() || null,
       });
 
@@ -215,83 +215,86 @@ function AddParticipantForm() {
         />
       </div>
 
-      {/* YOG confirmation */}
+      {/* YOG confirmation — compact version */}
       {form.yog && (
         <div style={{
           background: yogConfirmed ? '#0d1a0a' : '#1a1400',
           border: '1px solid var(--gold)',
-          borderRadius: 'var(--radius-md)',
-          padding: '1.25rem',
+          borderRadius: 'var(--radius-sm)',
+          padding: '0.875rem 1rem',
           marginBottom: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap',
         }}>
-          <p style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: 'var(--text-muted)',
-            marginBottom: '0.5rem',
-          }}>
-            Calculated Year of Graduation
-          </p>
-          <p style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '1.6rem',
-            fontWeight: 800,
-            color: 'var(--gold)',
-            marginBottom: '0.25rem',
-            lineHeight: 1,
-          }}>
-            {form.yog}
-          </p>
-          <p style={{
-            fontFamily: 'var(--font-accent)',
-            fontStyle: 'italic',
-            color: 'var(--text-muted)',
-            fontSize: '0.9rem',
-            marginBottom: '1rem',
-          }}>
-            {yogLabel}
-          </p>
+          <div>
+            <p style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.65rem',
+              fontWeight: 600,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+              marginBottom: '0.2rem',
+            }}>
+              Year of Graduation
+            </p>
+            <p style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.2rem',
+              fontWeight: 800,
+              color: 'var(--gold)',
+              lineHeight: 1,
+              marginBottom: '0.15rem',
+            }}>
+              {form.yog}
+            </p>
+            <p style={{
+              fontFamily: 'var(--font-accent)',
+              fontStyle: 'italic',
+              color: 'var(--text-muted)',
+              fontSize: '0.8rem',
+            }}>
+              {yogLabel}
+            </p>
+          </div>
 
           {!yogConfirmed ? (
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
               <button
                 type="button"
                 onClick={() => setYogConfirmed(true)}
                 className="tyt-btn tyt-btn-gold"
-                style={{ fontSize: '0.8rem', padding: '0.5rem 1.25rem' }}
+                style={{ fontSize: '0.75rem', padding: '0.4rem 1rem' }}
               >
-                Yes, that&apos;s correct
+                Confirm
               </button>
-              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Not right?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForm(f => ({ ...f, date_of_birth: '', yog: '' }));
-                    setYogLabel('');
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--gold)',
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.8rem',
-                    padding: 0,
-                    textDecoration: 'underline',
-                  }}
-                >
-                  Re-enter date of birth
-                </button>
-              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(f => ({ ...f, date_of_birth: '', yog: '' }));
+                  setYogLabel('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-faint)',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.75rem',
+                  padding: 0,
+                  textDecoration: 'underline',
+                }}
+              >
+                Not right? Re-enter
+              </button>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ color: 'var(--gold)', fontSize: '1.1rem' }}>✓</span>
-              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--gold)' }}>
+              <span style={{ color: 'var(--gold)', fontSize: '1rem' }}>✓</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--gold)' }}>
                 Confirmed
               </span>
               <button
@@ -303,9 +306,9 @@ function AddParticipantForm() {
                   color: 'var(--text-faint)',
                   cursor: 'pointer',
                   fontFamily: 'var(--font-body)',
-                  fontSize: '0.8rem',
+                  fontSize: '0.75rem',
                   padding: 0,
-                  marginLeft: '0.5rem',
+                  marginLeft: '0.25rem',
                   textDecoration: 'underline',
                 }}
               >
@@ -367,10 +370,21 @@ function AddParticipantForm() {
           type="tel"
           name="phone"
           value={form.phone}
-          onChange={handleChange}
-          placeholder="(401) 555-0000"
+          onChange={handlePhoneChange}
+          placeholder="10 digits, no dashes or spaces"
+          maxLength={10}
           className="tyt-input"
         />
+        {form.phone && form.phone.length > 0 && form.phone.length < 10 && (
+          <p style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.75rem',
+            color: 'var(--text-faint)',
+            marginTop: '0.3rem',
+          }}>
+            {10 - form.phone.length} more digit{10 - form.phone.length !== 1 ? 's' : ''} needed
+          </p>
+        )}
       </div>
 
       <div style={{ marginBottom: '1.75rem' }}>
