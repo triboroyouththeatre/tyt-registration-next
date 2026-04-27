@@ -39,7 +39,12 @@ function LoginForm() {
       refresh_token: data.refreshToken,
     });
 
-    window.location.href = redirectTo;
+    // Redirect based on onboarding status
+    if (!data.onboardingComplete) {
+      window.location.href = '/onboarding';
+    } else {
+      window.location.href = redirectTo;
+    }
   }
 
   return (

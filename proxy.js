@@ -10,6 +10,7 @@ const PUBLIC_ROUTES = [
   '/confirm',
   '/auth/callback',
   '/api',
+  '/onboarding',
 ];
 
 const ADMIN_ROUTES = ['/admin'];
