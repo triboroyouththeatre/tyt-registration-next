@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, Suspense } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
@@ -17,6 +18,7 @@ function LoginForm() {
     setLoading(true);
     setError('');
 
+    // Step 1: Server-side login to get session tokens
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -31,6 +33,14 @@ function LoginForm() {
       return;
     }
 
+    // Step 2: Set session in browser client so client-side queries work
+    const supabase = createClient();
+    await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+
+    // Step 3: Hard redirect so proxy sees the session
     window.location.href = redirectTo;
   }
 
