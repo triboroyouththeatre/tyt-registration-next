@@ -12,39 +12,15 @@ export default function ConfirmPage() {
   useEffect(() => {
     async function handleConfirmation() {
       const supabase = createClient();
-
-      // Supabase sends confirmation tokens in the URL hash as:
-      // #access_token=...&type=signup  (older flow)
-      // or as ?token_hash=...&type=email  (newer PKCE flow)
-      const hash = window.location.hash;
       const params = new URLSearchParams(window.location.search);
-      const hashParams = new URLSearchParams(hash.replace('#', ''));
+      const code = params.get('code');
 
-      const tokenHash = params.get('token_hash');
-      const type = params.get('type') || hashParams.get('type');
-      const accessToken = hashParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token');
-
-      let error = null;
-
-      if (tokenHash && type) {
-        // PKCE flow — newer Supabase
-        const result = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: type,
-        });
-        error = result.error;
-      } else if (accessToken) {
-        // Hash-based flow — older Supabase / magic link
-        const result = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken || '',
-        });
-        error = result.error;
-      } else {
-        // No recognizable token — likely already verified or bad link
-        error = { message: 'No token found' };
+      if (!code) {
+        setStatus('error');
+        return;
       }
+
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
 
       if (error) {
         setStatus('error');
@@ -52,8 +28,6 @@ export default function ConfirmPage() {
       }
 
       setStatus('success');
-
-      // Sign out so they land on login fresh
       await supabase.auth.signOut();
       setTimeout(() => router.push('/login'), 2500);
     }
