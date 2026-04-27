@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = [
   '/reset-password',
   '/confirm',
   '/auth/callback',
+  '/api',
 ];
 
 const ADMIN_ROUTES = ['/admin'];
