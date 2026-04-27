@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
 function LoginForm() {
@@ -10,7 +10,6 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/dashboard';
 
@@ -28,8 +27,8 @@ function LoginForm() {
       return;
     }
 
-    router.push(redirectTo);
-    router.refresh();
+    // Hard redirect ensures session cookie is set before proxy checks it
+    window.location.href = redirectTo;
   }
 
   return (
@@ -93,7 +92,6 @@ export default function LoginPage() {
     }}>
       <div style={{ width: '100%', maxWidth: '440px' }}>
 
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <Image
             src="/images/tyt-logo.png"
@@ -125,7 +123,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Card */}
         <div className="tyt-card">
           <Suspense fallback={
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>
@@ -136,7 +133,6 @@ export default function LoginPage() {
           </Suspense>
         </div>
 
-        {/* Sign up */}
         <p style={{
           textAlign: 'center',
           color: 'var(--text-muted)',
@@ -154,7 +150,6 @@ export default function LoginPage() {
           </a>
         </p>
 
-        {/* Footer */}
         <p style={{
           textAlign: 'center',
           color: 'var(--text-faint)',
