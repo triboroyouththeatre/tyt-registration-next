@@ -1,3 +1,4 @@
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 
 const PUBLIC_ROUTES = [
@@ -7,44 +8,56 @@ const PUBLIC_ROUTES = [
   '/forgot-password',
   '/reset-password',
   '/confirm',
-  'auth/callback',
+  '/auth/callback',
 ];
 
 const ADMIN_ROUTES = ['/admin'];
 
-export function proxy(request) {
+export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
   const isPublic = PUBLIC_ROUTES.some(
     route => pathname === route || pathname.startsWith(route + '/')
   );
-
   if (isPublic) return NextResponse.next();
 
-  const token = request.cookies.get('sb-access-token')?.value ||
-    request.cookies.getAll().find(c => c.name.includes('auth-token'))?.value;
+  let response = NextResponse.next({ request });
 
-  if (!token) {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value, options)
+          );
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirectTo', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   const isAdmin = ADMIN_ROUTES.some(route => pathname.startsWith(route));
-  if (isAdmin) {
-    try {
-      const payload = JSON.parse(
-        Buffer.from(token.split('.')[1], 'base64').toString()
-      );
-      if (payload?.app_metadata?.role !== 'admin') {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      }
-    } catch {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
+  if (isAdmin && user.app_metadata?.role !== 'admin') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
