@@ -18,7 +18,6 @@ function LoginForm() {
     setLoading(true);
     setError('');
 
-    // Step 1: Server-side login to get session tokens
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -33,14 +32,13 @@ function LoginForm() {
       return;
     }
 
-    // Step 2: Set session in browser client so client-side queries work
+    // Set session in browser client for client-side queries
     const supabase = createClient();
     await supabase.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
+      access_token: data.accessToken,
+      refresh_token: data.refreshToken,
     });
 
-    // Step 3: Hard redirect so proxy sees the session
     window.location.href = redirectTo;
   }
 
