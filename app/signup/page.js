@@ -35,7 +35,7 @@ function SignupForm() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/confirm`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 

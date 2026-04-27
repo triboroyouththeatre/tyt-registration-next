@@ -7,6 +7,7 @@ const PUBLIC_ROUTES = [
   '/forgot-password',
   '/reset-password',
   '/confirm',
+  'auth/callback',
 ];
 
 const ADMIN_ROUTES = ['/admin'];
