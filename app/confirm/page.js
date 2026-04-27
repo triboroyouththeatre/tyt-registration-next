@@ -7,6 +7,7 @@ import Image from 'next/image';
 
 export default function ConfirmPage() {
   const [status, setStatus] = useState('verifying');
+  const [errorMessage, setErrorMessage] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -14,15 +15,37 @@ export default function ConfirmPage() {
       const supabase = createClient();
       const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
+      const tokenHash = params.get('token_hash');
+      const type = params.get('type');
+      const errorParam = params.get('error');
+      const errorDescription = params.get('error_description');
 
-      if (!code) {
+      // If Supabase sent an error directly
+      if (errorParam) {
+        setErrorMessage(`${errorParam}: ${errorDescription}`);
         setStatus('error');
         return;
       }
 
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (!code && !tokenHash) {
+        setErrorMessage('No confirmation token found in URL.');
+        setStatus('error');
+        return;
+      }
 
-      if (error) {
+      let result;
+
+      if (tokenHash && type) {
+        result = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: type,
+        });
+      } else if (code) {
+        result = await supabase.auth.exchangeCodeForSession(code);
+      }
+
+      if (result?.error) {
+        setErrorMessage(result.error.message);
         setStatus('error');
         return;
       }
@@ -128,6 +151,20 @@ export default function ConfirmPage() {
             }}>
               Link Expired
             </h1>
+            {errorMessage && (
+              <p style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.8rem',
+                color: 'var(--text-faint)',
+                marginBottom: '0.75rem',
+                padding: '0.5rem',
+                background: 'var(--bg-card)',
+                borderRadius: 'var(--radius-sm)',
+                wordBreak: 'break-all',
+              }}>
+                {errorMessage}
+              </p>
+            )}
             <p style={{
               fontFamily: 'var(--font-accent)',
               fontStyle: 'italic',
