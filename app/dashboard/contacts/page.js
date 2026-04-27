@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
 
 const CONTACT_SLOTS = [
-  { priority: 1, label: 'Primary Guardian', required: true, description: 'First contact in any situation' },
-  { priority: 2, label: 'Secondary Guardian', required: false, description: 'Second guardian or co-parent' },
-  { priority: 3, label: 'Primary Emergency Contact', required: true, description: 'Must not be a parent or guardian' },
-  { priority: 4, label: 'Secondary Emergency Contact', required: false, description: 'Additional emergency contact' },
+  { priority: 1, label: 'Primary Guardian', required: true, description: 'First contact in any situation', isGuardian: true },
+  { priority: 2, label: 'Secondary Guardian', required: false, description: 'Second guardian or co-parent', isGuardian: true },
+  { priority: 3, label: 'Primary Emergency Contact', required: true, description: 'Must not be a parent or guardian', isGuardian: false },
+  { priority: 4, label: 'Secondary Emergency Contact', required: false, description: 'Additional emergency contact', isGuardian: false },
 ];
 
 const EMPTY_FORM = {
@@ -17,27 +17,26 @@ const EMPTY_FORM = {
   relationship_id: '',
   phone: '',
   email: '',
-  authorized_pickup: false,
 };
 
 function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
   const [editing, setEditing] = useState(!contact);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState(
-    contact ? {
-      first_name: contact.first_name || '',
-      last_name: contact.last_name || '',
-      relationship_id: contact.relationship_id || '',
-      phone: contact.phone || '',
-      email: contact.email || '',
-      authorized_pickup: contact.authorized_pickup || false,
-    } : { ...EMPTY_FORM }
-  );
+
+  const initialForm = contact ? {
+    first_name: contact.first_name || '',
+    last_name: contact.last_name || '',
+    relationship_id: contact.relationship_id || '',
+    phone: contact.phone || '',
+    email: contact.email || '',
+  } : { ...EMPTY_FORM };
+
+  const [form, setForm] = useState(initialForm);
 
   function handleChange(e) {
-    const { name, value, type, checked } = e.target;
-    setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
   }
 
   function handlePhoneChange(e) {
@@ -46,17 +45,8 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
   }
 
   function handleCancel() {
-    if (contact) {
-      setForm({
-        first_name: contact.first_name || '',
-        last_name: contact.last_name || '',
-        relationship_id: contact.relationship_id || '',
-        phone: contact.phone || '',
-        email: contact.email || '',
-        authorized_pickup: contact.authorized_pickup || false,
-      });
-      setEditing(false);
-    }
+    setForm(initialForm);
+    setEditing(false);
     setError('');
   }
 
@@ -68,7 +58,7 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
       setError('First and last name are required.');
       return;
     }
-    if (!form.relationship_id) {
+    if (slot.isGuardian && !form.relationship_id) {
       setError('Please select a relationship.');
       return;
     }
@@ -85,10 +75,10 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
       priority: slot.priority,
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
-      relationship_id: form.relationship_id,
+      relationship_id: slot.isGuardian ? form.relationship_id : null,
       phone: form.phone,
-      email: form.email.trim() || null,
-      authorized_pickup: form.authorized_pickup,
+      email: slot.isGuardian ? (form.email.trim() || null) : null,
+      authorized_pickup: false,
     };
 
     let error;
@@ -114,19 +104,17 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
     onSaved();
   }
 
-  const relationship = relationships.find(r => r.id === (contact?.relationship_id));
-
-  const isGuardian = slot.priority <= 2;
+  const relationship = relationships.find(r => r.id === contact?.relationship_id);
 
   return (
     <div style={{
       background: 'var(--bg-card)',
-      border: `1px solid ${contact ? 'var(--border)' : 'var(--border)'}`,
+      border: '1px solid var(--border)',
       borderRadius: 'var(--radius-md)',
       overflow: 'hidden',
       marginBottom: '1rem',
     }}>
-      {/* Card header */}
+      {/* Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -142,19 +130,14 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
             fontWeight: 700,
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
-            color: isGuardian ? 'var(--gold)' : 'var(--text-muted)',
+            color: slot.isGuardian ? 'var(--gold)' : 'var(--text-muted)',
           }}>
             {slot.label}
           </span>
           {slot.required && (
             <span style={{ color: 'var(--red)', marginLeft: '0.3rem', fontSize: '0.75rem' }}>*</span>
           )}
-          <p style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: '0.75rem',
-            color: 'var(--text-faint)',
-            marginTop: '0.1rem',
-          }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)', marginTop: '0.1rem' }}>
             {slot.description}
           </p>
         </div>
@@ -180,18 +163,17 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
         )}
       </div>
 
-      {/* Card body */}
+      {/* Body */}
       <div style={{ padding: '1.25rem' }}>
         {!editing && contact ? (
           // Read-only view
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {[
               { label: 'Name', value: `${contact.first_name} ${contact.last_name}` },
-              { label: 'Relationship', value: relationship?.label || '—' },
+              slot.isGuardian && { label: 'Relationship', value: relationship?.label || '—' },
               { label: 'Phone', value: contact.phone || '—' },
-              { label: 'Email', value: contact.email || '—' },
-              { label: 'Authorized Pickup', value: contact.authorized_pickup ? 'Yes' : 'No' },
-            ].map(item => (
+              slot.isGuardian && { label: 'Email', value: contact.email || '—' },
+            ].filter(Boolean).map(item => (
               <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
                 <span style={{
                   fontFamily: 'var(--font-display)',
@@ -251,15 +233,18 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
               </div>
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label className="tyt-label">Relationship <span style={{ color: 'var(--red)' }}>*</span></label>
-              <select name="relationship_id" value={form.relationship_id} onChange={handleChange} required className="tyt-input">
-                <option value="">Select relationship</option>
-                {relationships.map(r => (
-                  <option key={r.id} value={r.id}>{r.label}</option>
-                ))}
-              </select>
-            </div>
+            {/* Relationship — guardians only */}
+            {slot.isGuardian && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label className="tyt-label">Relationship <span style={{ color: 'var(--red)' }}>*</span></label>
+                <select name="relationship_id" value={form.relationship_id} onChange={handleChange} required className="tyt-input">
+                  <option value="">Select relationship</option>
+                  {relationships.map(r => (
+                    <option key={r.id} value={r.id}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div style={{ marginBottom: '1rem' }}>
               <label className="tyt-label">Phone <span style={{ color: 'var(--red)' }}>*</span></label>
@@ -279,32 +264,13 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
               )}
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label className="tyt-label">Email <span style={{ color: 'var(--text-faint)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
-              <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="email@example.com" className="tyt-input" />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              <input
-                type="checkbox"
-                id={`pickup-${slot.priority}`}
-                name="authorized_pickup"
-                checked={form.authorized_pickup}
-                onChange={handleChange}
-                style={{ width: '16px', height: '16px', accentColor: 'var(--red)', cursor: 'pointer' }}
-              />
-              <label
-                htmlFor={`pickup-${slot.priority}`}
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.875rem',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                }}
-              >
-                Authorized to pick up participant(s)
-              </label>
-            </div>
+            {/* Email — guardians only */}
+            {slot.isGuardian && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label className="tyt-label">Email <span style={{ color: 'var(--text-faint)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+                <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="email@example.com" className="tyt-input" />
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button type="submit" disabled={saving} className="tyt-btn tyt-btn-primary" style={{ flex: 1 }}>
@@ -402,11 +368,10 @@ export default function ContactsPage() {
           </p>
         </div>
 
-        {/* Guardian section */}
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.75rem' }}>
           Parent / Guardian
         </h2>
-        {CONTACT_SLOTS.filter(s => s.priority <= 2).map(slot => (
+        {CONTACT_SLOTS.filter(s => s.isGuardian).map(slot => (
           <ContactCard
             key={slot.priority}
             slot={slot}
@@ -417,14 +382,13 @@ export default function ContactsPage() {
           />
         ))}
 
-        {/* Emergency contact section */}
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: '1.5rem', marginBottom: '0.75rem' }}>
           Emergency Contacts
         </h2>
         <p style={{ fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.825rem', color: 'var(--text-faint)', marginBottom: '0.75rem' }}>
           Emergency contacts must not be a parent or guardian listed above.
         </p>
-        {CONTACT_SLOTS.filter(s => s.priority >= 3).map(slot => (
+        {CONTACT_SLOTS.filter(s => !s.isGuardian).map(slot => (
           <ContactCard
             key={slot.priority}
             slot={slot}
