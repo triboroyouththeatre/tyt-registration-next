@@ -1,0 +1,440 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image';
+
+const CONTACT_SLOTS = [
+  { priority: 1, label: 'Primary Guardian', required: true, description: 'First contact in any situation' },
+  { priority: 2, label: 'Secondary Guardian', required: false, description: 'Second guardian or co-parent' },
+  { priority: 3, label: 'Primary Emergency Contact', required: true, description: 'Must not be a parent or guardian' },
+  { priority: 4, label: 'Secondary Emergency Contact', required: false, description: 'Additional emergency contact' },
+];
+
+const EMPTY_FORM = {
+  first_name: '',
+  last_name: '',
+  relationship_id: '',
+  phone: '',
+  email: '',
+  authorized_pickup: false,
+};
+
+function ContactCard({ slot, contact, relationships, familyId, onSaved }) {
+  const [editing, setEditing] = useState(!contact);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [form, setForm] = useState(
+    contact ? {
+      first_name: contact.first_name || '',
+      last_name: contact.last_name || '',
+      relationship_id: contact.relationship_id || '',
+      phone: contact.phone || '',
+      email: contact.email || '',
+      authorized_pickup: contact.authorized_pickup || false,
+    } : { ...EMPTY_FORM }
+  );
+
+  function handleChange(e) {
+    const { name, value, type, checked } = e.target;
+    setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+  }
+
+  function handlePhoneChange(e) {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setForm(f => ({ ...f, phone: digits }));
+  }
+
+  function handleCancel() {
+    if (contact) {
+      setForm({
+        first_name: contact.first_name || '',
+        last_name: contact.last_name || '',
+        relationship_id: contact.relationship_id || '',
+        phone: contact.phone || '',
+        email: contact.email || '',
+        authorized_pickup: contact.authorized_pickup || false,
+      });
+      setEditing(false);
+    }
+    setError('');
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setError('');
+
+    if (!form.first_name.trim() || !form.last_name.trim()) {
+      setError('First and last name are required.');
+      return;
+    }
+    if (!form.relationship_id) {
+      setError('Please select a relationship.');
+      return;
+    }
+    if (!form.phone || form.phone.length !== 10) {
+      setError('A valid 10-digit phone number is required.');
+      return;
+    }
+
+    setSaving(true);
+    const supabase = createClient();
+
+    const payload = {
+      family_id: familyId,
+      priority: slot.priority,
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      relationship_id: form.relationship_id,
+      phone: form.phone,
+      email: form.email.trim() || null,
+      authorized_pickup: form.authorized_pickup,
+    };
+
+    let error;
+    if (contact) {
+      ({ error } = await supabase
+        .from('contacts')
+        .update(payload)
+        .eq('id', contact.id));
+    } else {
+      ({ error } = await supabase
+        .from('contacts')
+        .insert(payload));
+    }
+
+    if (error) {
+      setError(error.message);
+      setSaving(false);
+      return;
+    }
+
+    setSaving(false);
+    setEditing(false);
+    onSaved();
+  }
+
+  const relationship = relationships.find(r => r.id === (contact?.relationship_id));
+
+  const isGuardian = slot.priority <= 2;
+
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: `1px solid ${contact ? 'var(--border)' : 'var(--border)'}`,
+      borderRadius: 'var(--radius-md)',
+      overflow: 'hidden',
+      marginBottom: '1rem',
+    }}>
+      {/* Card header */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0.875rem 1.25rem',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--bg-hover)',
+      }}>
+        <div>
+          <span style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: isGuardian ? 'var(--gold)' : 'var(--text-muted)',
+          }}>
+            {slot.label}
+          </span>
+          {slot.required && (
+            <span style={{ color: 'var(--red)', marginLeft: '0.3rem', fontSize: '0.75rem' }}>*</span>
+          )}
+          <p style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.75rem',
+            color: 'var(--text-faint)',
+            marginTop: '0.1rem',
+          }}>
+            {slot.description}
+          </p>
+        </div>
+        {contact && !editing && (
+          <button
+            onClick={() => setEditing(true)}
+            style={{
+              background: 'none',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.3rem 0.75rem',
+              color: 'var(--text-muted)',
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            Edit
+          </button>
+        )}
+      </div>
+
+      {/* Card body */}
+      <div style={{ padding: '1.25rem' }}>
+        {!editing && contact ? (
+          // Read-only view
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {[
+              { label: 'Name', value: `${contact.first_name} ${contact.last_name}` },
+              { label: 'Relationship', value: relationship?.label || '—' },
+              { label: 'Phone', value: contact.phone || '—' },
+              { label: 'Email', value: contact.email || '—' },
+              { label: 'Authorized Pickup', value: contact.authorized_pickup ? 'Yes' : 'No' },
+            ].map(item => (
+              <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                <span style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  flexShrink: 0,
+                }}>
+                  {item.label}
+                </span>
+                <span style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.9rem',
+                  color: item.value === '—' ? 'var(--text-faint)' : 'var(--text-primary)',
+                  textAlign: 'right',
+                }}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : !editing && !contact ? (
+          // Empty state
+          <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+            <p style={{
+              fontFamily: 'var(--font-accent)',
+              fontStyle: 'italic',
+              color: 'var(--text-faint)',
+              fontSize: '0.875rem',
+              marginBottom: '0.75rem',
+            }}>
+              {slot.required ? 'Required — not yet added.' : 'Optional — not yet added.'}
+            </p>
+            <button
+              onClick={() => setEditing(true)}
+              className="tyt-btn tyt-btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem 1.25rem' }}
+            >
+              + Add {slot.label}
+            </button>
+          </div>
+        ) : (
+          // Edit form
+          <form onSubmit={handleSave}>
+            {error && <div className="tyt-error">{error}</div>}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label className="tyt-label">First Name <span style={{ color: 'var(--red)' }}>*</span></label>
+                <input type="text" name="first_name" value={form.first_name} onChange={handleChange} required className="tyt-input" placeholder="First name" />
+              </div>
+              <div>
+                <label className="tyt-label">Last Name <span style={{ color: 'var(--red)' }}>*</span></label>
+                <input type="text" name="last_name" value={form.last_name} onChange={handleChange} required className="tyt-input" placeholder="Last name" />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label className="tyt-label">Relationship <span style={{ color: 'var(--red)' }}>*</span></label>
+              <select name="relationship_id" value={form.relationship_id} onChange={handleChange} required className="tyt-input">
+                <option value="">Select relationship</option>
+                {relationships.map(r => (
+                  <option key={r.id} value={r.id}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label className="tyt-label">Phone <span style={{ color: 'var(--red)' }}>*</span></label>
+              <input
+                type="tel"
+                name="phone"
+                value={form.phone}
+                onChange={handlePhoneChange}
+                placeholder="10 digits, no dashes or spaces"
+                maxLength={10}
+                className="tyt-input"
+              />
+              {form.phone && form.phone.length > 0 && form.phone.length < 10 && (
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)', marginTop: '0.3rem' }}>
+                  {10 - form.phone.length} more digit{10 - form.phone.length !== 1 ? 's' : ''} needed
+                </p>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label className="tyt-label">Email <span style={{ color: 'var(--text-faint)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+              <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="email@example.com" className="tyt-input" />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <input
+                type="checkbox"
+                id={`pickup-${slot.priority}`}
+                name="authorized_pickup"
+                checked={form.authorized_pickup}
+                onChange={handleChange}
+                style={{ width: '16px', height: '16px', accentColor: 'var(--red)', cursor: 'pointer' }}
+              />
+              <label
+                htmlFor={`pickup-${slot.priority}`}
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.875rem',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                Authorized to pick up participant(s)
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button type="submit" disabled={saving} className="tyt-btn tyt-btn-primary" style={{ flex: 1 }}>
+                {saving ? 'Saving...' : contact ? 'Save Changes' : `Add ${slot.label}`}
+              </button>
+              {contact && (
+                <button type="button" onClick={handleCancel} className="tyt-btn tyt-btn-secondary" style={{ flex: 1 }}>
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function ContactsPage() {
+  const [loading, setLoading] = useState(true);
+  const [familyId, setFamilyId] = useState(null);
+  const [contacts, setContacts] = useState([]);
+  const [relationships, setRelationships] = useState([]);
+
+  async function loadData() {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('family_id')
+      .eq('id', user.id)
+      .single();
+
+    const [{ data: contactData }, { data: relData }] = await Promise.all([
+      supabase
+        .from('contacts')
+        .select('*, relationships(label)')
+        .eq('family_id', profile.family_id)
+        .order('priority'),
+      supabase
+        .from('relationships')
+        .select('id, label')
+        .order('label'),
+    ]);
+
+    setFamilyId(profile.family_id);
+    setContacts(contactData || []);
+    setRelationships(relData || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)' }}>Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
+      <nav style={{
+        background: 'var(--bg-card)',
+        borderBottom: '1px solid var(--border)',
+        padding: '0 1.5rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: '64px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+      }}>
+        <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={48} height={48} style={{ objectFit: 'contain' }} />
+        </a>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+          Contacts
+        </span>
+        <a href="/dashboard" style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', textDecoration: 'none' }}>
+          Back
+        </a>
+      </nav>
+
+      <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+        <div style={{ marginBottom: '2rem' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+            Contacts
+          </h1>
+          <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '1rem' }}>
+            Guardians are contacted first. Emergency contacts are reached only if guardians are unavailable.
+          </p>
+        </div>
+
+        {/* Guardian section */}
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.75rem' }}>
+          Parent / Guardian
+        </h2>
+        {CONTACT_SLOTS.filter(s => s.priority <= 2).map(slot => (
+          <ContactCard
+            key={slot.priority}
+            slot={slot}
+            contact={contacts.find(c => c.priority === slot.priority) || null}
+            relationships={relationships}
+            familyId={familyId}
+            onSaved={loadData}
+          />
+        ))}
+
+        {/* Emergency contact section */}
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: '1.5rem', marginBottom: '0.75rem' }}>
+          Emergency Contacts
+        </h2>
+        <p style={{ fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.825rem', color: 'var(--text-faint)', marginBottom: '0.75rem' }}>
+          Emergency contacts must not be a parent or guardian listed above.
+        </p>
+        {CONTACT_SLOTS.filter(s => s.priority >= 3).map(slot => (
+          <ContactCard
+            key={slot.priority}
+            slot={slot}
+            contact={contacts.find(c => c.priority === slot.priority) || null}
+            relationships={relationships}
+            familyId={familyId}
+            onSaved={loadData}
+          />
+        ))}
+      </main>
+    </div>
+  );
+}

@@ -113,7 +113,7 @@ export default function LoginPage() {
             marginTop: '0.5rem',
             marginBottom: '0.25rem',
           }}>
-            TYT Family Portal
+            Family Portal
           </h1>
           <p style={{
             fontFamily: 'var(--font-accent)',
