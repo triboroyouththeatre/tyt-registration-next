@@ -81,17 +81,22 @@ function Step1({ onComplete }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [relationships, setRelationships] = useState([]);
+  const [accountEmail, setAccountEmail] = useState('');
   const [form, setForm] = useState({
     first_name: '', last_name: '', relationship_id: '',
-    phone: '', email: '',
+    phone: '',
     street: '', street2: '', city: '', state: '', zip: '',
   });
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase.from('relationships').select('id, label').order('label');
-      setRelationships(data || []);
+      const [{ data: rels }, { data: { user } }] = await Promise.all([
+        supabase.from('relationships').select('id, label').order('label'),
+        supabase.auth.getUser(),
+      ]);
+      setRelationships(rels || []);
+      setAccountEmail(user?.email || '');
     }
     load();
   }, []);
@@ -120,7 +125,6 @@ function Step1({ onComplete }) {
     const { data: profile } = await supabase
       .from('profiles').select('family_id').eq('id', user.id).single();
 
-    // Update family with address
     await supabase.from('families').update({
       street: form.street.trim(),
       street2: form.street2.trim() || null,
@@ -129,7 +133,6 @@ function Step1({ onComplete }) {
       zip: form.zip.trim(),
     }).eq('id', profile.family_id);
 
-    // Create primary contact
     const { error: contactError } = await supabase.from('contacts').insert({
       family_id: profile.family_id,
       priority: 1,
@@ -137,7 +140,7 @@ function Step1({ onComplete }) {
       last_name: form.last_name.trim(),
       relationship_id: form.relationship_id || null,
       phone: form.phone,
-      email: form.email.trim() || null,
+      email: accountEmail || null,
       authorized_pickup: false,
       street: form.street.trim(),
       street2: form.street2.trim() || null,
@@ -147,7 +150,6 @@ function Step1({ onComplete }) {
     });
 
     if (contactError) { setError(contactError.message); setSaving(false); return; }
-
     onComplete();
   }
 
@@ -156,10 +158,10 @@ function Step1({ onComplete }) {
       {error && <div className="tyt-error">{error}</div>}
 
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-        Your Information
+        Primary Parent / Guardian Information
       </h2>
       <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-        This will become your primary guardian contact on file.
+        This will become your primary contact on file for all participants in your family.
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
@@ -191,9 +193,38 @@ function Step1({ onComplete }) {
         )}
       </div>
 
+      {/* Read-only account email */}
       <div style={{ marginBottom: '1.5rem' }}>
-        <label className="tyt-label">Email <span style={{ color: 'var(--text-faint)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
-        <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="your@email.com" className="tyt-input" />
+        <label className="tyt-label">Account Email</label>
+        <div style={{
+          width: '100%',
+          background: 'var(--bg-dark)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '0.75rem 1rem',
+          color: 'var(--text-muted)',
+          fontFamily: 'var(--font-body)',
+          fontSize: '0.95rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxSizing: 'border-box',
+        }}>
+          <span>{accountEmail}</span>
+          <span style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '0.6rem',
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--text-faint)',
+            border: '1px solid var(--border)',
+            borderRadius: '3px',
+            padding: '0.15rem 0.4rem',
+          }}>
+            Account Email
+          </span>
+        </div>
       </div>
 
       <hr className="tyt-divider" />
@@ -254,7 +285,6 @@ function Step2({ onComplete }) {
   });
   const [yogLabel, setYogLabel] = useState('');
   const [yogConfirmed, setYogConfirmed] = useState(false);
-  const [dobChanged, setDobChanged] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -415,11 +445,9 @@ function Step2({ onComplete }) {
         <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="participant@example.com" className="tyt-input" />
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <button type="submit" disabled={saving} className="tyt-btn tyt-btn-primary" style={{ flex: 1 }}>
-          {saving ? 'Saving...' : 'Continue →'}
-        </button>
-      </div>
+      <button type="submit" disabled={saving} className="tyt-btn tyt-btn-primary tyt-btn-full">
+        {saving ? 'Saving...' : 'Continue →'}
+      </button>
     </form>
   );
 }
@@ -542,7 +570,6 @@ function Step3({ onComplete, onSkip }) {
 
       <hr className="tyt-divider" />
 
-      {/* Same address toggle */}
       <div style={{
         background: 'var(--bg-hover)',
         border: '1px solid var(--border)',
@@ -554,20 +581,10 @@ function Step3({ onComplete, onSkip }) {
           Address
         </p>
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <button
-            type="button"
-            onClick={() => setSameAddress(true)}
-            className={sameAddress ? 'tyt-btn tyt-btn-gold' : 'tyt-btn tyt-btn-secondary'}
-            style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}
-          >
+          <button type="button" onClick={() => setSameAddress(true)} className={sameAddress ? 'tyt-btn tyt-btn-gold' : 'tyt-btn tyt-btn-secondary'} style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>
             Same as primary
           </button>
-          <button
-            type="button"
-            onClick={() => setSameAddress(false)}
-            className={!sameAddress ? 'tyt-btn tyt-btn-primary' : 'tyt-btn tyt-btn-secondary'}
-            style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}
-          >
+          <button type="button" onClick={() => setSameAddress(false)} className={!sameAddress ? 'tyt-btn tyt-btn-primary' : 'tyt-btn tyt-btn-secondary'} style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>
             Different address
           </button>
         </div>
@@ -657,17 +674,15 @@ function Step4({ onComplete }) {
     const { data: { user } } = await supabase.auth.getUser();
     const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
 
-    const contacts = [
-      {
-        family_id: profile.family_id,
-        priority: 3,
-        first_name: primary.first_name.trim(),
-        last_name: primary.last_name.trim(),
-        phone: primary.phone,
-        relationship_id: null,
-        authorized_pickup: false,
-      },
-    ];
+    const contacts = [{
+      family_id: profile.family_id,
+      priority: 3,
+      first_name: primary.first_name.trim(),
+      last_name: primary.last_name.trim(),
+      phone: primary.phone,
+      relationship_id: null,
+      authorized_pickup: false,
+    }];
 
     if (hasSecondary && secondary.first_name.trim() && secondary.last_name.trim()) {
       contacts.push({
@@ -684,7 +699,6 @@ function Step4({ onComplete }) {
     const { error: err } = await supabase.from('contacts').insert(contacts);
     if (err) { setError(err.message); setSaving(false); return; }
 
-    // Mark onboarding complete
     await supabase.from('families')
       .update({ is_onboarding_complete: true })
       .eq('id', profile.family_id);
@@ -761,7 +775,6 @@ export default function OnboardingPage() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Header */}
       <div style={{ textAlign: 'center', padding: '2rem 1.5rem 0' }}>
         <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={80} height={80} style={{ objectFit: 'contain' }} priority />
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
@@ -772,12 +785,10 @@ export default function OnboardingPage() {
         </p>
       </div>
 
-      {/* Step indicator */}
       <div style={{ padding: '0 1.5rem' }}>
         <StepIndicator currentStep={step} />
       </div>
 
-      {/* Step content */}
       <main style={{ maxWidth: '560px', width: '100%', margin: '0 auto', padding: '0 1.5rem 3rem' }}>
         <div className="tyt-card">
           {step === 1 && <Step1 onComplete={handleComplete} />}
