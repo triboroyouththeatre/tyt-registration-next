@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
@@ -18,16 +17,20 @@ function LoginForm() {
     setLoading(true);
     setError('');
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
 
-    if (error) {
-      setError(error.message);
+    const data = await res.json();
+
+    if (!res.ok) {
+      setError(data.error || 'Invalid email or password.');
       setLoading(false);
       return;
     }
 
-    // Hard redirect ensures session cookie is set before proxy checks it
     window.location.href = redirectTo;
   }
 
