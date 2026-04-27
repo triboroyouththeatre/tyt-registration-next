@@ -21,40 +21,23 @@ const STEPS = [
 
 function StepIndicator({ currentStep }) {
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '0',
-      marginBottom: '2rem',
-    }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0', marginBottom: '2rem' }}>
       {STEPS.map((step, i) => (
         <div key={step.number} style={{ display: 'flex', alignItems: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
             <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: currentStep === step.number ? 'var(--red)' :
-                         currentStep > step.number ? 'var(--gold)' : 'var(--bg-hover)',
-              border: `2px solid ${currentStep === step.number ? 'var(--red)' :
-                       currentStep > step.number ? 'var(--gold)' : 'var(--border)'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.8rem',
-              fontWeight: 700,
+              width: '32px', height: '32px', borderRadius: '50%',
+              background: currentStep === step.number ? 'var(--red)' : currentStep > step.number ? 'var(--gold)' : 'var(--bg-hover)',
+              border: `2px solid ${currentStep === step.number ? 'var(--red)' : currentStep > step.number ? 'var(--gold)' : 'var(--border)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 700,
               color: currentStep >= step.number ? '#111' : 'var(--text-faint)',
             }}>
               {currentStep > step.number ? '✓' : step.number}
             </div>
             <span style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.6rem',
-              fontWeight: 600,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              fontFamily: 'var(--font-display)', fontSize: '0.6rem', fontWeight: 600,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
               color: currentStep === step.number ? 'var(--text-primary)' : 'var(--text-faint)',
               whiteSpace: 'nowrap',
             }}>
@@ -63,11 +46,9 @@ function StepIndicator({ currentStep }) {
           </div>
           {i < STEPS.length - 1 && (
             <div style={{
-              width: '48px',
-              height: '2px',
+              width: '48px', height: '2px',
               background: currentStep > step.number ? 'var(--gold)' : 'var(--border)',
-              margin: '0 4px',
-              marginBottom: '18px',
+              margin: '0 4px', marginBottom: '18px',
             }} />
           )}
         </div>
@@ -77,15 +58,14 @@ function StepIndicator({ currentStep }) {
 }
 
 // ── Step 1: Primary Guardian Info ─────────────────────────────────────────────
-function Step1({ onComplete }) {
+function Step1({ onComplete, setGuardianData }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [relationships, setRelationships] = useState([]);
   const [accountEmail, setAccountEmail] = useState('');
   const [form, setForm] = useState({
     first_name: '', last_name: '', relationship_id: '',
-    phone: '',
-    street: '', street2: '', city: '', state: '', zip: '',
+    phone: '', street: '', street2: '', city: '', state: '', zip: '',
   });
 
   useEffect(() => {
@@ -101,62 +81,44 @@ function Step1({ onComplete }) {
     load();
   }, []);
 
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
-  }
-
-  function handlePhone(e) {
-    setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }));
-  }
+  function handleChange(e) { setForm(f => ({ ...f, [e.target.name]: e.target.value })); }
+  function handlePhone(e) { setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })); }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-
     if (form.phone.length !== 10) { setError('Phone must be 10 digits.'); return; }
-    if (!form.street || !form.city || !form.state || !form.zip) {
-      setError('Please complete all address fields.'); return;
-    }
+    if (!form.street || !form.city || !form.state || !form.zip) { setError('Please complete all address fields.'); return; }
 
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase
-      .from('profiles').select('family_id').eq('id', user.id).single();
+    const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
 
     await supabase.from('families').update({
-      street: form.street.trim(),
-      street2: form.street2.trim() || null,
-      city: form.city.trim(),
-      state: form.state,
-      zip: form.zip.trim(),
+      street: form.street.trim(), street2: form.street2.trim() || null,
+      city: form.city.trim(), state: form.state, zip: form.zip.trim(),
     }).eq('id', profile.family_id);
 
     const { error: contactError } = await supabase.from('contacts').insert({
-      family_id: profile.family_id,
-      priority: 1,
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
+      family_id: profile.family_id, priority: 1,
+      first_name: form.first_name.trim(), last_name: form.last_name.trim(),
       relationship_id: form.relationship_id || null,
-      phone: form.phone,
-      email: accountEmail || null,
-      authorized_pickup: false,
-      street: form.street.trim(),
-      street2: form.street2.trim() || null,
-      city: form.city.trim(),
-      state: form.state,
-      zip: form.zip.trim(),
+      phone: form.phone, email: accountEmail || null, authorized_pickup: false,
+      street: form.street.trim(), street2: form.street2.trim() || null,
+      city: form.city.trim(), state: form.state, zip: form.zip.trim(),
     });
 
     if (contactError) { setError(contactError.message); setSaving(false); return; }
+
+    // Pass guardian data up so Step 2 can validate against it
+    setGuardianData({ phone: form.phone, email: accountEmail });
     onComplete();
   }
 
   return (
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error">{error}</div>}
-
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
         Primary Parent / Guardian Information
       </h2>
@@ -193,37 +155,20 @@ function Step1({ onComplete }) {
         )}
       </div>
 
-      {/* Read-only account email */}
       <div style={{ marginBottom: '1.5rem' }}>
         <label className="tyt-label">Account Email</label>
         <div style={{
-          width: '100%',
-          background: 'var(--bg-dark)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '0.75rem 1rem',
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-body)',
-          fontSize: '0.95rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxSizing: 'border-box',
+          width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', color: 'var(--text-muted)',
+          fontFamily: 'var(--font-body)', fontSize: '0.95rem', display: 'flex',
+          alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box',
         }}>
           <span>{accountEmail}</span>
           <span style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '0.6rem',
-            fontWeight: 600,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            color: 'var(--text-faint)',
-            border: '1px solid var(--border)',
-            borderRadius: '3px',
-            padding: '0.15rem 0.4rem',
-          }}>
-            Account Email
-          </span>
+            fontFamily: 'var(--font-display)', fontSize: '0.6rem', fontWeight: 600,
+            letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)',
+            border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.4rem',
+          }}>Account Email</span>
         </div>
       </div>
 
@@ -240,17 +185,14 @@ function Step1({ onComplete }) {
         <label className="tyt-label">Street Address <span style={{ color: 'var(--red)' }}>*</span></label>
         <input type="text" name="street" value={form.street} onChange={handleChange} required placeholder="123 Main St" className="tyt-input" />
       </div>
-
       <div style={{ marginBottom: '1rem' }}>
         <label className="tyt-label">Apt / Suite <span style={{ color: 'var(--text-faint)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
         <input type="text" name="street2" value={form.street2} onChange={handleChange} placeholder="Apt 2B" className="tyt-input" />
       </div>
-
       <div style={{ marginBottom: '1rem' }}>
         <label className="tyt-label">City <span style={{ color: 'var(--red)' }}>*</span></label>
         <input type="text" name="city" value={form.city} onChange={handleChange} required placeholder="City" className="tyt-input" />
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '1.75rem' }}>
         <div>
           <label className="tyt-label">State <span style={{ color: 'var(--red)' }}>*</span></label>
@@ -273,7 +215,7 @@ function Step1({ onComplete }) {
 }
 
 // ── Step 2: First Participant ─────────────────────────────────────────────────
-function Step2({ onComplete }) {
+function Step2({ onComplete, guardianData }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [genders, setGenders] = useState([]);
@@ -329,6 +271,21 @@ function Step2({ onComplete }) {
     if (!yogConfirmed) { setError('Please confirm the year of graduation.'); return; }
     if (form.phone && form.phone.length !== 10) { setError('Phone must be 10 digits.'); return; }
 
+    // Check for duplicate contact info
+    const participantPhone = form.phone.trim();
+    const participantEmail = form.email.trim().toLowerCase();
+    const guardianPhone = guardianData?.phone || '';
+    const guardianEmail = (guardianData?.email || '').toLowerCase();
+
+    if (participantPhone && participantPhone === guardianPhone) {
+      setError('Participant contact information should not be the same as parent/guardian contact information. Please remove the duplicate phone number.');
+      return;
+    }
+    if (participantEmail && guardianEmail && participantEmail === guardianEmail) {
+      setError('Participant contact information should not be the same as parent/guardian contact information. Please remove the duplicate email address.');
+      return;
+    }
+
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -336,14 +293,10 @@ function Step2({ onComplete }) {
 
     const { error: err } = await supabase.from('participants').insert({
       family_id: profile.family_id,
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
-      nickname: form.nickname.trim() || null,
-      date_of_birth: form.date_of_birth,
-      yog: parseInt(form.yog),
-      gender_id: form.gender_id,
-      phone: form.phone || null,
-      email: form.email.trim() || null,
+      first_name: form.first_name.trim(), last_name: form.last_name.trim(),
+      nickname: form.nickname.trim() || null, date_of_birth: form.date_of_birth,
+      yog: parseInt(form.yog), gender_id: form.gender_id,
+      phone: participantPhone || null, email: participantEmail || null,
     });
 
     if (err) { setError(err.message); setSaving(false); return; }
@@ -353,7 +306,6 @@ function Step2({ onComplete }) {
   return (
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error">{error}</div>}
-
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
         Add Your First Participant
       </h2>
@@ -384,16 +336,9 @@ function Step2({ onComplete }) {
 
       {form.yog && (
         <div style={{
-          background: yogConfirmed ? '#0d1a0a' : '#1a1400',
-          border: '1px solid var(--gold)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '0.875rem 1rem',
-          marginBottom: '1rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          flexWrap: 'wrap',
+          background: yogConfirmed ? '#0d1a0a' : '#1a1400', border: '1px solid var(--gold)',
+          borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem', marginBottom: '1rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
         }}>
           <div>
             <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Year of Graduation</p>
@@ -460,8 +405,7 @@ function Step3({ onComplete, onSkip }) {
   const [sameAddress, setSameAddress] = useState(true);
   const [form, setForm] = useState({
     first_name: '', last_name: '', relationship_id: '',
-    phone: '', email: '',
-    street: '', street2: '', city: '', state: '', zip: '',
+    phone: '', email: '', street: '', street2: '', city: '', state: '', zip: '',
   });
 
   useEffect(() => {
@@ -491,34 +435,17 @@ function Step3({ onComplete, onSkip }) {
 
     let addressFields = {};
     if (!sameAddress) {
-      addressFields = {
-        street: form.street.trim(),
-        street2: form.street2.trim() || null,
-        city: form.city.trim(),
-        state: form.state,
-        zip: form.zip.trim(),
-      };
+      addressFields = { street: form.street.trim(), street2: form.street2.trim() || null, city: form.city.trim(), state: form.state, zip: form.zip.trim() };
     } else {
       const { data: family } = await supabase.from('families').select('street, street2, city, state, zip').eq('id', profile.family_id).single();
-      addressFields = {
-        street: family.street,
-        street2: family.street2,
-        city: family.city,
-        state: family.state,
-        zip: family.zip,
-      };
+      addressFields = { street: family.street, street2: family.street2, city: family.city, state: family.state, zip: family.zip };
     }
 
     const { error: err } = await supabase.from('contacts').insert({
-      family_id: profile.family_id,
-      priority: 2,
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
-      relationship_id: form.relationship_id || null,
-      phone: form.phone,
-      email: form.email.trim() || null,
-      authorized_pickup: false,
-      ...addressFields,
+      family_id: profile.family_id, priority: 2,
+      first_name: form.first_name.trim(), last_name: form.last_name.trim(),
+      relationship_id: form.relationship_id || null, phone: form.phone,
+      email: form.email.trim() || null, authorized_pickup: false, ...addressFields,
     });
 
     if (err) { setError(err.message); setSaving(false); return; }
@@ -528,7 +455,6 @@ function Step3({ onComplete, onSkip }) {
   return (
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error">{error}</div>}
-
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
         Secondary Guardian
       </h2>
@@ -570,23 +496,11 @@ function Step3({ onComplete, onSkip }) {
 
       <hr className="tyt-divider" />
 
-      <div style={{
-        background: 'var(--bg-hover)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
-        padding: '1rem 1.25rem',
-        marginBottom: sameAddress ? '1.5rem' : '1rem',
-      }}>
-        <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-          Address
-        </p>
+      <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem', marginBottom: sameAddress ? '1.5rem' : '1rem' }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Address</p>
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <button type="button" onClick={() => setSameAddress(true)} className={sameAddress ? 'tyt-btn tyt-btn-gold' : 'tyt-btn tyt-btn-secondary'} style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>
-            Same as primary
-          </button>
-          <button type="button" onClick={() => setSameAddress(false)} className={!sameAddress ? 'tyt-btn tyt-btn-primary' : 'tyt-btn tyt-btn-secondary'} style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>
-            Different address
-          </button>
+          <button type="button" onClick={() => setSameAddress(true)} className={sameAddress ? 'tyt-btn tyt-btn-gold' : 'tyt-btn tyt-btn-secondary'} style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>Same as primary</button>
+          <button type="button" onClick={() => setSameAddress(false)} className={!sameAddress ? 'tyt-btn tyt-btn-primary' : 'tyt-btn tyt-btn-secondary'} style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>Different address</button>
         </div>
       </div>
 
@@ -621,12 +535,8 @@ function Step3({ onComplete, onSkip }) {
       )}
 
       <div style={{ display: 'flex', gap: '1rem' }}>
-        <button type="submit" disabled={saving} className="tyt-btn tyt-btn-primary" style={{ flex: 1 }}>
-          {saving ? 'Saving...' : 'Continue →'}
-        </button>
-        <button type="button" onClick={onSkip} className="tyt-btn tyt-btn-secondary" style={{ flex: 1 }}>
-          Skip for now
-        </button>
+        <button type="submit" disabled={saving} className="tyt-btn tyt-btn-primary" style={{ flex: 1 }}>{saving ? 'Saving...' : 'Continue →'}</button>
+        <button type="button" onClick={onSkip} className="tyt-btn tyt-btn-secondary" style={{ flex: 1 }}>Skip for now</button>
       </div>
     </form>
   );
@@ -654,20 +564,12 @@ function Step4({ onComplete }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-
     const primary = forms[0];
-    if (!primary.first_name.trim() || !primary.last_name.trim()) {
-      setError('Primary emergency contact name is required.'); return;
-    }
-    if (primary.phone.length !== 10) {
-      setError('Primary emergency contact phone must be 10 digits.'); return;
-    }
-
+    if (!primary.first_name.trim() || !primary.last_name.trim()) { setError('Primary emergency contact name is required.'); return; }
+    if (primary.phone.length !== 10) { setError('Primary emergency contact phone must be 10 digits.'); return; }
     const secondary = forms[1];
     const hasSecondary = secondary.first_name.trim() || secondary.last_name.trim() || secondary.phone;
-    if (hasSecondary && secondary.phone.length !== 10) {
-      setError('Secondary emergency contact phone must be 10 digits.'); return;
-    }
+    if (hasSecondary && secondary.phone.length !== 10) { setError('Secondary emergency contact phone must be 10 digits.'); return; }
 
     setSaving(true);
     const supabase = createClient();
@@ -675,41 +577,29 @@ function Step4({ onComplete }) {
     const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
 
     const contacts = [{
-      family_id: profile.family_id,
-      priority: 3,
-      first_name: primary.first_name.trim(),
-      last_name: primary.last_name.trim(),
-      phone: primary.phone,
-      relationship_id: null,
-      authorized_pickup: false,
+      family_id: profile.family_id, priority: 3,
+      first_name: primary.first_name.trim(), last_name: primary.last_name.trim(),
+      phone: primary.phone, relationship_id: null, authorized_pickup: false,
     }];
 
     if (hasSecondary && secondary.first_name.trim() && secondary.last_name.trim()) {
       contacts.push({
-        family_id: profile.family_id,
-        priority: 4,
-        first_name: secondary.first_name.trim(),
-        last_name: secondary.last_name.trim(),
-        phone: secondary.phone,
-        relationship_id: null,
-        authorized_pickup: false,
+        family_id: profile.family_id, priority: 4,
+        first_name: secondary.first_name.trim(), last_name: secondary.last_name.trim(),
+        phone: secondary.phone, relationship_id: null, authorized_pickup: false,
       });
     }
 
     const { error: err } = await supabase.from('contacts').insert(contacts);
     if (err) { setError(err.message); setSaving(false); return; }
 
-    await supabase.from('families')
-      .update({ is_onboarding_complete: true })
-      .eq('id', profile.family_id);
-
+    await supabase.from('families').update({ is_onboarding_complete: true }).eq('id', profile.family_id);
     onComplete();
   }
 
   return (
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error">{error}</div>}
-
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
         Emergency Contacts
       </h2>
@@ -721,17 +611,10 @@ function Step4({ onComplete }) {
       </p>
 
       {[0, 1].map(idx => (
-        <div key={idx} style={{
-          background: 'var(--bg-hover)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          padding: '1.25rem',
-          marginBottom: '1rem',
-        }}>
+        <div key={idx} style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1rem' }}>
           <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: idx === 0 ? 'var(--gold)' : 'var(--text-muted)', marginBottom: '1rem' }}>
             {idx === 0 ? 'Primary Emergency Contact *' : 'Secondary Emergency Contact (optional)'}
           </p>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div>
               <label className="tyt-label">First Name {idx === 0 && <span style={{ color: 'var(--red)' }}>*</span>}</label>
@@ -742,7 +625,6 @@ function Step4({ onComplete }) {
               <input type="text" name="last_name" value={forms[idx].last_name} onChange={e => handleChange(idx, e)} required={idx === 0} className="tyt-input" />
             </div>
           </div>
-
           <div>
             <label className="tyt-label">Phone {idx === 0 && <span style={{ color: 'var(--red)' }}>*</span>}</label>
             <input type="tel" name="phone" value={forms[idx].phone} onChange={e => handlePhone(idx, e)} placeholder="10 digits" maxLength={10} className="tyt-input" />
@@ -763,18 +645,15 @@ function Step4({ onComplete }) {
 // ── Main Onboarding Page ───────────────────────────────────────────────────────
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
+  const [guardianData, setGuardianData] = useState(null);
 
   function handleComplete() {
-    if (step < 4) {
-      setStep(s => s + 1);
-    } else {
-      window.location.href = '/dashboard';
-    }
+    if (step < 4) setStep(s => s + 1);
+    else window.location.href = '/dashboard';
   }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column' }}>
-
       <div style={{ textAlign: 'center', padding: '2rem 1.5rem 0' }}>
         <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={80} height={80} style={{ objectFit: 'contain' }} priority />
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
@@ -791,8 +670,8 @@ export default function OnboardingPage() {
 
       <main style={{ maxWidth: '560px', width: '100%', margin: '0 auto', padding: '0 1.5rem 3rem' }}>
         <div className="tyt-card">
-          {step === 1 && <Step1 onComplete={handleComplete} />}
-          {step === 2 && <Step2 onComplete={handleComplete} />}
+          {step === 1 && <Step1 onComplete={handleComplete} setGuardianData={setGuardianData} />}
+          {step === 2 && <Step2 onComplete={handleComplete} guardianData={guardianData} />}
           {step === 3 && <Step3 onComplete={handleComplete} onSkip={() => setStep(4)} />}
           {step === 4 && <Step4 onComplete={handleComplete} />}
         </div>

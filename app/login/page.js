@@ -32,14 +32,12 @@ function LoginForm() {
       return;
     }
 
-    // Set session in browser client for client-side queries
     const supabase = createClient();
     await supabase.auth.setSession({
       access_token: data.accessToken,
       refresh_token: data.refreshToken,
     });
 
-    // Redirect based on onboarding status
     if (!data.onboardingComplete) {
       window.location.href = '/onboarding';
     } else {
@@ -63,18 +61,8 @@ function LoginForm() {
         />
       </div>
 
-      <div style={{ marginBottom: '1.75rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-          <label className="tyt-label" style={{ marginBottom: 0 }}>Password</label>
-          <a href="/forgot-password" style={{
-            fontFamily: 'var(--font-accent)',
-            fontStyle: 'italic',
-            fontSize: '0.85rem',
-            color: 'var(--gold)',
-          }}>
-            Forgot password?
-          </a>
-        </div>
+      <div style={{ marginBottom: '0.5rem' }}>
+        <label className="tyt-label">Password</label>
         <input
           type="password"
           value={password}
@@ -83,6 +71,19 @@ function LoginForm() {
           placeholder="••••••••"
           className="tyt-input"
         />
+      </div>
+
+      {/* Forgot password moved below the field */}
+      <div style={{ textAlign: 'right', marginBottom: '1.75rem' }}>
+        <a href="/forgot-password" style={{
+          fontFamily: 'var(--font-accent)',
+          fontStyle: 'italic',
+          fontSize: '0.85rem',
+          color: 'var(--gold)',
+          textDecoration: 'none',
+        }}>
+          Forgot password?
+        </a>
       </div>
 
       <button
