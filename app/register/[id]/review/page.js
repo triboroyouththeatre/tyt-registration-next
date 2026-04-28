@@ -99,6 +99,7 @@ function ReviewContent({ programId }) {
           .eq('is_active', true)
           .order('first_name'),
       ]);
+      console.log('PROGRAM DATA:', JSON.stringify(prog));
 
       // Fetch season display separately using session_id
       let seasonStr = '';
