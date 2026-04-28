@@ -5,20 +5,20 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
 
-const STEP_INDICATOR = [
+const FA_LINK = 'https://drive.google.com/file/d/1T5ReNZm8cCpDLwwxkcL7xG3uDtlK1TFz/view?usp=sharing';
+
+const STEPS = [
   { n: 1, label: 'Health', done: true, active: false },
   { n: 2, label: 'Agreements', done: true, active: false },
   { n: 3, label: 'Review', done: false, active: true },
   { n: 4, label: 'Payment', done: false, active: false },
 ];
 
-const FA_LINK = 'https://drive.google.com/file/d/1T5ReNZm8cCpDLwwxkcL7xG3uDtlK1TFz/view?usp=sharing';
-
 function StepBar() {
   return (
     <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0.75rem 1.5rem' }}>
       <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
-        {STEP_INDICATOR.map((s, i, arr) => (
+        {STEPS.map((s, i, arr) => (
           <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
               <div style={{
@@ -53,11 +53,9 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-function ReviewForm() {
+function ReviewContent({ programId }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const params = useParams();
-  const programId = params?.id;
   const participantId = searchParams.get('participant');
 
   const [loading, setLoading] = useState(true);
@@ -74,9 +72,9 @@ function ReviewForm() {
   const [cartItems, setCartItems] = useState([]);
 
   useEffect(() => {
-    async function load() {
-      if (!participantId || !programId) return;
+    if (!programId || !participantId) return;
 
+    async function load() {
       const supabase = createClient();
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -87,17 +85,35 @@ function ReviewForm() {
         .single();
 
       const [{ data: p }, { data: prog }, { data: allParticipants }] = await Promise.all([
-        supabase.from('participants').select('first_name, last_name, nickname').eq('id', participantId).single(),
-        supabase.from('programs').select('id, label, fee, deposit_amount, balance_due_date, yog_min, yog_max, costume_fee, other_fee, other_fee_label, session_id').eq('id', programId).single(),
-        supabase.from('participants').select('id, first_name, last_name, yog').eq('family_id', profile.family_id).eq('is_active', true).order('first_name'),
+        supabase.from('participants')
+          .select('first_name, last_name, nickname')
+          .eq('id', participantId)
+          .single(),
+        supabase.from('programs')
+          .select('id, label, fee, deposit_amount, balance_due_date, yog_min, yog_max, costume_fee, other_fee, other_fee_label, session_id')
+          .eq('id', programId)
+          .single(),
+        supabase.from('participants')
+          .select('id, first_name, last_name, yog')
+          .eq('family_id', profile.family_id)
+          .eq('is_active', true)
+          .order('first_name'),
       ]);
 
-      // Fetch season display name using session_id
+      // Fetch season display separately using session_id
       let seasonStr = '';
       if (prog?.session_id) {
-        const { data: sess } = await supabase.from('sessions').select('name, season_id').eq('id', prog.session_id).single();
+        const { data: sess } = await supabase
+          .from('sessions')
+          .select('name, season_id')
+          .eq('id', prog.session_id)
+          .single();
         if (sess?.season_id) {
-          const { data: season } = await supabase.from('seasons').select('name, display_name').eq('id', sess.season_id).single();
+          const { data: season } = await supabase
+            .from('seasons')
+            .select('name, display_name')
+            .eq('id', sess.season_id)
+            .single();
           seasonStr = season?.display_name || season?.name || '';
         }
       }
@@ -106,10 +122,13 @@ function ReviewForm() {
       setProgram(prog);
       setSeasonDisplay(seasonStr);
 
+      // Filter eligible siblings using actual program yog range
+      const yogMin = prog?.yog_min;
+      const yogMax = prog?.yog_max;
       const siblings = (allParticipants || []).filter(ap => {
         if (ap.id === participantId) return false;
-        if (!prog?.yog_min || !prog?.yog_max) return true;
-        return ap.yog >= prog.yog_min && ap.yog <= prog.yog_max;
+        if (!yogMin || !yogMax) return false; // if no range defined, show no siblings
+        return ap.yog >= yogMin && ap.yog <= yogMax;
       });
       setEligibleSiblings(siblings);
 
@@ -123,8 +142,9 @@ function ReviewForm() {
 
       setLoading(false);
     }
+
     load();
-  }, [participantId, programId]);
+  }, [programId, participantId]);
 
   function buildCartItem() {
     return {
@@ -159,6 +179,10 @@ function ReviewForm() {
   function handleSaveAndAddAnother(siblingId) {
     saveToCart();
     router.push(`/register/${programId}?participant=${siblingId}`);
+  }
+
+  if (!programId || !participantId) {
+    return <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem', fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>Missing registration parameters.</div>;
   }
 
   if (loading) {
@@ -352,7 +376,22 @@ function ReviewForm() {
   );
 }
 
+// Wrapper that resolves programId from params and passes it as a prop
+function ReviewWrapper() {
+  const params = useParams();
+  const programId = params?.id;
+
+  if (!programId) {
+    return <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem', fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>Loading...</div>;
+  }
+
+  return <ReviewContent programId={programId} />;
+}
+
 export default function ReviewPage() {
+  const params = useParams();
+  const programId = params?.id;
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
       <nav style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px', position: 'sticky', top: 0, zIndex: 100 }}>
@@ -360,26 +399,18 @@ export default function ReviewPage() {
           <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={48} height={48} style={{ objectFit: 'contain' }} />
         </a>
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>Registration</span>
-        <BackButton />
+        <a href={`/register/${programId}/agreements`} style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', textDecoration: 'none', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.85rem' }}>
+          ← Back
+        </a>
       </nav>
 
       <StepBar />
 
       <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
         <Suspense fallback={<div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem', fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>Loading...</div>}>
-          <ReviewForm />
+          <ReviewWrapper />
         </Suspense>
       </main>
     </div>
-  );
-}
-
-function BackButton() {
-  const params = useParams();
-  const programId = params?.id;
-  return (
-    <a href={`/register/${programId}/agreements`} style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', textDecoration: 'none', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.85rem' }}>
-      ← Back
-    </a>
   );
 }
