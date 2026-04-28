@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
+
 
 const DOC_ORDER = ['payment_agreement', 'participant_rules', 'liability_waiver'];
 
@@ -193,7 +194,9 @@ function AgreementsForm({ programId }) {
 }
 
 export default function AgreementsPage({ params }) {
-  const programId = params.id;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const programId = params?.id;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
