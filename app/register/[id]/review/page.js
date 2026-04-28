@@ -118,13 +118,24 @@ function ReviewContent({ programId }) {
         }
       }
 
+      // Parse numeric fields — Supabase returns them as strings
+      const parsedProg = prog ? {
+        ...prog,
+        fee: parseFloat(prog.fee) || 0,
+        deposit_amount: parseFloat(prog.deposit_amount) || 0,
+        costume_fee: parseFloat(prog.costume_fee) || 0,
+        other_fee: parseFloat(prog.other_fee) || 0,
+        yog_min: parseInt(prog.yog_min) || null,
+        yog_max: parseInt(prog.yog_max) || null,
+      } : null;
+
       setParticipant(p);
-      setProgram(prog);
+      setProgram(parsedProg);
       setSeasonDisplay(seasonStr);
 
-      // Filter eligible siblings using actual program yog range
-      const yogMin = prog?.yog_min;
-      const yogMax = prog?.yog_max;
+      const yogMin = parsedProg?.yog_min;
+      const yogMax = parsedProg?.yog_max;
+      const siblings = (allParticipants || []).filter(ap => {
       const siblings = (allParticipants || []).filter(ap => {
         if (ap.id === participantId) return false;
         if (!yogMin || !yogMax) return false; // if no range defined, show no siblings
