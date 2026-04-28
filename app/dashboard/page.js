@@ -17,10 +17,21 @@ export default async function DashboardPage() {
 
   const family = profile?.families;
 
+  // Get primary contact for first name
+  const { data: primaryContact } = await supabase
+    .from('contacts')
+    .select('first_name')
+    .eq('family_id', family?.id)
+    .eq('priority', 1)
+    .single();
+
+  const firstName = primaryContact?.first_name || null;
+
   const { data: participants } = await supabase
     .from('participants')
     .select('*')
     .eq('family_id', family?.id)
+    .eq('is_active', true)
     .order('first_name');
 
   const { data: registrations } = await supabase
@@ -34,7 +45,7 @@ export default async function DashboardPage() {
           label,
           sessions(
             name,
-            seasons(name)
+            seasons(name, display_name)
           )
         )
       )
@@ -42,18 +53,28 @@ export default async function DashboardPage() {
     .eq('family_id', family?.id)
     .order('registered_at', { ascending: false });
 
+  // Get active sessions with display name
   const { data: activeSessions } = await supabase
     .from('sessions')
-    .select('id, name, seasons(name)')
+    .select('id, name, seasons(name, display_name)')
     .eq('is_active', true)
     .limit(1);
 
-  const registrationOpen = activeSessions && activeSessions.length > 0;
-  const currentSeason = activeSessions?.[0]?.seasons?.name;
+  // Check if any programs have registration open
+  const { data: openPrograms } = await supabase
+    .from('programs')
+    .select('id, sessions!inner(is_active)')
+    .eq('is_registration_open', true)
+    .eq('sessions.is_active', true)
+    .limit(1);
+
+  const registrationOpen = openPrograms && openPrograms.length > 0;
+  const currentSession = activeSessions?.[0];
+  const currentSeasonDisplay = currentSession?.seasons?.display_name || currentSession?.seasons?.name;
 
   const currentRegistrations = registrations?.filter(r =>
     r.registration_programs?.some(rp =>
-      rp.programs?.sessions?.seasons?.name === currentSeason
+      rp.programs?.sessions?.seasons?.name === currentSession?.seasons?.name
     )
   ) || [];
 
@@ -87,12 +108,8 @@ export default async function DashboardPage() {
           border-color: var(--gold);
           background: var(--bg-hover);
         }
-        .dash-link-muted {
-          opacity: 0.7;
-        }
-        .dash-link-muted:hover {
-          opacity: 1;
-        }
+        .dash-link-muted { opacity: 0.7; }
+        .dash-link-muted:hover { opacity: 1; }
         .account-link {
           display: flex;
           align-items: center;
@@ -101,187 +118,81 @@ export default async function DashboardPage() {
           text-decoration: none;
           transition: background 0.15s;
         }
-        .account-link:hover {
-          background: var(--bg-hover);
-        }
+        .account-link:hover { background: var(--bg-hover); }
       `}</style>
 
       <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
 
         {/* Nav */}
         <nav style={{
-          background: 'var(--bg-card)',
-          borderBottom: '1px solid var(--border)',
-          padding: '0 1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          height: '64px',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
+          background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
+          padding: '0 1.5rem', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', height: '64px',
+          position: 'sticky', top: 0, zIndex: 100,
         }}>
-          <Image
-            src="/images/tyt-logo.png"
-            alt="Triboro Youth Theatre"
-            width={48}
-            height={48}
-            style={{ objectFit: 'contain' }}
-          />
-          <span style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '1.1rem',
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--text-primary)',
-          }}>
+          <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={48} height={48} style={{ objectFit: 'contain' }} />
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
             Family Portal
           </span>
           <LogoutButton />
         </nav>
 
-        {/* Main */}
         <main style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem 1.5rem' }}>
 
           {/* Welcome */}
           <div style={{ marginBottom: '2rem' }}>
             <h1 style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '2rem',
-              fontWeight: 800,
-              letterSpacing: '0.05em',
-              textTransform: 'uppercase',
-              color: 'var(--text-primary)',
-              marginBottom: '0.25rem',
+              fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 800,
+              letterSpacing: '0.05em', textTransform: 'uppercase',
+              color: 'var(--text-primary)', marginBottom: '0',
             }}>
-              Welcome Back
+              Welcome Back{firstName ? `, ${firstName.toUpperCase()}` : ''}
             </h1>
-            <p style={{
-              fontFamily: 'var(--font-accent)',
-              fontStyle: 'italic',
-              color: 'var(--text-muted)',
-              fontSize: '1rem',
-            }}>
-              {user.email}
-              {currentSeason && (
-                <span style={{ color: 'var(--gold)', marginLeft: '0.75rem' }}>
-                  · Season {currentSeason}
-                </span>
-              )}
-            </p>
           </div>
 
           {/* Balance banner */}
           {totalOwed > 0 && (
             <div style={{
-              background: '#1a0a0a',
-              border: '1px solid var(--red)',
-              borderRadius: 'var(--radius-md)',
-              padding: '1.25rem 1.5rem',
-              marginBottom: '2rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem',
-              flexWrap: 'wrap',
+              background: '#1a0a0a', border: '1px solid var(--red)',
+              borderRadius: 'var(--radius-md)', padding: '1.25rem 1.5rem',
+              marginBottom: '2rem', display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
             }}>
               <div>
-                <p style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-muted)',
-                  marginBottom: '0.25rem',
-                }}>
-                  Balance Due
-                </p>
-                <p style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '2rem',
-                  fontWeight: 800,
-                  color: 'var(--red)',
-                  lineHeight: 1,
-                }}>
-                  {formatCurrency(totalOwed)}
-                </p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Balance Due</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 800, color: 'var(--red)', lineHeight: 1 }}>{formatCurrency(totalOwed)}</p>
               </div>
-              <a href="/dashboard/pay" className="tyt-btn tyt-btn-primary">
-                Pay Now
-              </a>
+              <a href="/dashboard/pay" className="tyt-btn tyt-btn-primary">Pay Now</a>
             </div>
           )}
 
           {/* Registration open banner */}
           {registrationOpen && (
             <div style={{
-              background: '#0d1a0a',
-              border: '1px solid var(--gold)',
-              borderRadius: 'var(--radius-md)',
-              padding: '1.25rem 1.5rem',
-              marginBottom: '2rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem',
-              flexWrap: 'wrap',
+              background: '#0d1a0a', border: '1px solid var(--gold)',
+              borderRadius: 'var(--radius-md)', padding: '1.25rem 1.5rem',
+              marginBottom: '2rem', display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
             }}>
               <div>
-                <p style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: 'var(--gold)',
-                  marginBottom: '0.25rem',
-                }}>
-                  Registration is Open
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.15rem' }}>
+                  {currentSeasonDisplay} Programs
                 </p>
-                <p style={{
-                  fontFamily: 'var(--font-accent)',
-                  fontStyle: 'italic',
-                  color: 'var(--text-muted)',
-                  fontSize: '0.9rem',
-                }}>
-                  {activeSessions[0].name} · Season {activeSessions[0].seasons?.name}
+                <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  Registration is now open
                 </p>
               </div>
-              <a href="/register" className="tyt-btn tyt-btn-gold">
-                Register Now
-              </a>
+              <a href="/register" className="tyt-btn tyt-btn-gold">Register Now</a>
             </div>
           )}
 
           {/* Participants */}
           <section style={{ marginBottom: '2.5rem' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1rem',
-            }}>
-              <h2 style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '1.3rem',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--text-primary)',
-              }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
                 Participants
               </h2>
-              <a href="/dashboard/participants/new" style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: 'var(--gold)',
-                textDecoration: 'none',
-              }}>
+              <a href="/dashboard/participants/new" style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', textDecoration: 'none' }}>
                 + Add Participant
               </a>
             </div>
@@ -291,33 +202,15 @@ export default async function DashboardPage() {
                 {participants.map(p => (
                   <a key={p.id} href={`/dashboard/participants/${p.id}`} className="dash-link">
                     <div>
-                      <p style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '1.1rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.04em',
-                        color: 'var(--text-primary)',
-                        marginBottom: '0.15rem',
-                      }}>
+                      <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-primary)', marginBottom: '0.15rem' }}>
                         {p.first_name} {p.last_name}
                         {p.nickname && (
-                          <span style={{
-                            fontFamily: 'var(--font-accent)',
-                            fontStyle: 'italic',
-                            fontWeight: 400,
-                            fontSize: '0.9rem',
-                            color: 'var(--text-muted)',
-                            marginLeft: '0.5rem',
-                          }}>
+                          <span style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontWeight: 400, fontSize: '0.9rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
                             &ldquo;{p.nickname}&rdquo;
                           </span>
                         )}
                       </p>
-                      <p style={{
-                        fontFamily: 'var(--font-body)',
-                        fontSize: '0.8rem',
-                        color: 'var(--text-muted)',
-                      }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         Class of {p.yog}
                       </p>
                     </div>
@@ -326,40 +219,17 @@ export default async function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div style={{
-                background: 'var(--bg-card)',
-                border: '1px dashed var(--border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '2rem',
-                textAlign: 'center',
-              }}>
-                <p style={{
-                  fontFamily: 'var(--font-accent)',
-                  fontStyle: 'italic',
-                  color: 'var(--text-muted)',
-                  marginBottom: '1rem',
-                }}>
-                  No participants added yet.
-                </p>
-                <a href="/dashboard/participants/new" className="tyt-btn tyt-btn-secondary">
-                  Add Your First Participant
-                </a>
+              <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', padding: '2rem', textAlign: 'center' }}>
+                <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', marginBottom: '1rem' }}>No participants added yet.</p>
+                <a href="/dashboard/participants/new" className="tyt-btn tyt-btn-secondary">Add Your First Participant</a>
               </div>
             )}
           </section>
 
-          {/* Current registrations */}
+          {/* Current Season */}
           <section style={{ marginBottom: '2.5rem' }}>
-            <h2 style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '1.3rem',
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--text-primary)',
-              marginBottom: '1rem',
-            }}>
-              Current Season
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+              {currentSeasonDisplay ? `${currentSeasonDisplay} Season` : 'Current Season'}
             </h2>
 
             {currentRegistrations.length > 0 ? (
@@ -370,134 +240,60 @@ export default async function DashboardPage() {
                   return (
                     <a key={r.id} href={`/dashboard/registrations/${r.id}`} className="dash-link">
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{
-                          fontFamily: 'var(--font-display)',
-                          fontSize: '1rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.04em',
-                          color: 'var(--text-primary)',
-                          marginBottom: '0.15rem',
-                        }}>
+                        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-primary)', marginBottom: '0.15rem' }}>
                           {r.participants?.first_name} {r.participants?.last_name}
                         </p>
-                        <p style={{
-                          fontFamily: 'var(--font-body)',
-                          fontSize: '0.82rem',
-                          color: 'var(--text-muted)',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {programs?.join(', ') || 'No programs'}
                         </p>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         {balance > 0 ? (
-                          <p style={{
-                            fontFamily: 'var(--font-display)',
-                            fontSize: '1rem',
-                            fontWeight: 700,
-                            color: 'var(--red)',
-                          }}>
-                            {formatCurrency(balance)} due
-                          </p>
+                          <p style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--red)' }}>{formatCurrency(balance)} due</p>
                         ) : (
-                          <p style={{
-                            fontFamily: 'var(--font-display)',
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            color: 'var(--gold)',
-                          }}>
-                            Paid in full
-                          </p>
+                          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gold)' }}>Paid in full</p>
                         )}
-                        <p style={{
-                          fontFamily: 'var(--font-body)',
-                          fontSize: '0.75rem',
-                          color: 'var(--text-faint)',
-                        }}>
-                          #{r.registration_number}
-                        </p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)' }}>#{r.registration_number}</p>
                       </div>
                     </a>
                   );
                 })}
               </div>
             ) : (
-              <div style={{
-                background: 'var(--bg-card)',
-                border: '1px dashed var(--border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '2rem',
-                textAlign: 'center',
-              }}>
-                <p style={{
-                  fontFamily: 'var(--font-accent)',
-                  fontStyle: 'italic',
-                  color: 'var(--text-muted)',
-                }}>
-                  No registrations for the current season.
-                </p>
+              <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', padding: '2rem', textAlign: 'center' }}>
+                <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)' }}>No registrations for the current season.</p>
               </div>
             )}
           </section>
 
-          {/* Past registrations */}
+          {/* Registration History */}
           {pastRegistrations.length > 0 && (
             <section style={{ marginBottom: '2.5rem' }}>
-              <h2 style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '1.3rem',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--text-muted)',
-                marginBottom: '1rem',
-              }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '1rem' }}>
                 Registration History
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {pastRegistrations.map(r => {
                   const programs = r.registration_programs?.map(rp => rp.programs?.label).filter(Boolean);
-                  const season = r.registration_programs?.[0]?.programs?.sessions?.seasons?.name;
+                  const seasonDisplay = r.registration_programs?.[0]?.programs?.sessions?.seasons?.display_name ||
+                                       r.registration_programs?.[0]?.programs?.sessions?.seasons?.name;
                   return (
                     <a key={r.id} href={`/dashboard/registrations/${r.id}`} className="dash-link dash-link-muted">
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{
-                          fontFamily: 'var(--font-display)',
-                          fontSize: '0.95rem',
-                          fontWeight: 700,
-                          color: 'var(--text-primary)',
-                          marginBottom: '0.15rem',
-                        }}>
+                        <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.15rem' }}>
                           {r.participants?.first_name} {r.participants?.last_name}
                         </p>
-                        <p style={{
-                          fontFamily: 'var(--font-body)',
-                          fontSize: '0.8rem',
-                          color: 'var(--text-muted)',
-                        }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {programs?.join(', ') || 'No programs'}
                         </p>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        {season && (
-                          <p style={{
-                            fontFamily: 'var(--font-display)',
-                            fontSize: '0.8rem',
-                            color: 'var(--text-faint)',
-                            letterSpacing: '0.05em',
-                          }}>
-                            Season {season}
+                        {seasonDisplay && (
+                          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', color: 'var(--text-faint)', letterSpacing: '0.05em' }}>
+                            {seasonDisplay} Season
                           </p>
                         )}
-                        <p style={{
-                          fontFamily: 'var(--font-body)',
-                          fontSize: '0.75rem',
-                          color: 'var(--text-faint)',
-                        }}>
-                          #{r.registration_number}
-                        </p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)' }}>#{r.registration_number}</p>
                       </div>
                     </a>
                   );
@@ -508,44 +304,18 @@ export default async function DashboardPage() {
 
           {/* Account */}
           <section>
-            <h2 style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '1.3rem',
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--text-primary)',
-              marginBottom: '1rem',
-            }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '1rem' }}>
               Account
             </h2>
-            <div style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              overflow: 'hidden',
-            }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
               {[
                 { label: 'Account Information', href: '/dashboard/account' },
                 { label: 'Contacts & Emergency Contacts', href: '/dashboard/contacts' },
                 { label: 'Payment History', href: '/dashboard/payments' },
                 { label: 'Change Password', href: '/dashboard/change-password' },
               ].map((item, i, arr) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="account-link"
-                  style={{
-                    borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
-                  }}
-                >
-                  <span style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.95rem',
-                    color: 'var(--text-primary)',
-                  }}>
-                    {item.label}
-                  </span>
+                <a key={item.href} href={item.href} className="account-link" style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.95rem', color: 'var(--text-primary)' }}>{item.label}</span>
                   <span style={{ color: 'var(--gold)', fontSize: '1.2rem' }}>›</span>
                 </a>
               ))}
