@@ -136,7 +136,6 @@ function ReviewContent({ programId }) {
       const yogMin = parsedProg?.yog_min;
       const yogMax = parsedProg?.yog_max;
       const siblings = (allParticipants || []).filter(ap => {
-      const siblings = (allParticipants || []).filter(ap => {
         if (ap.id === participantId) return false;
         if (!yogMin || !yogMax) return false; // if no range defined, show no siblings
         return ap.yog >= yogMin && ap.yog <= yogMax;
