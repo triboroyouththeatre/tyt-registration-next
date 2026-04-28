@@ -137,7 +137,7 @@ function AgreementsForm({ programId }) {
       agreed_at: new Date().toISOString(),
     }));
     sessionStorage.setItem(`agreements_${programId}_${participantId}`, JSON.stringify(agreementData));
-    router.push(`/register/${programId}/review?participant=${participantId}`);
+    router.push(`/register/${programId}/review?participant=${participantId}&programId=${programId}`);
   }
 
   const seasonDisplay = program?.sessions?.seasons?.display_name || program?.sessions?.seasons?.name;

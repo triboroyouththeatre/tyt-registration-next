@@ -390,7 +390,7 @@ function ReviewContent({ programId }) {
 // Wrapper that resolves programId from params and passes it as a prop
 function ReviewWrapper() {
   const params = useParams();
-  const programId = params?.id;
+  const programId = params?.id || searchParams?.get('programId');
 
   if (!programId) {
     return <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem', fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>Loading...</div>;
