@@ -14,36 +14,19 @@ const STEP_INDICATOR = [
 
 const FA_LINK = 'https://drive.google.com/file/d/1T5ReNZm8cCpDLwwxkcL7xG3uDtlK1TFz/view?usp=sharing';
 
-const DOC_TITLES = {
-  payment_agreement: 'Registration Fee Policy',
-  participant_rules: 'Participation Policy & Behavior Standards',
-  liability_waiver: 'Health & Safety — Liability Waiver and Release of Claims',
-};
-
 function StepBar() {
   return (
     <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0.75rem 1.5rem' }}>
-      <div style={{ maxWidth: '780px', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
+      <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
         {STEP_INDICATOR.map((s, i, arr) => (
           <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
-              <div style={{
-                width: '28px', height: '28px', borderRadius: '50%',
-                background: s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--bg-hover)',
-                border: `2px solid ${s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--border)'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700,
-                color: s.done ? '#111' : s.active ? '#fff' : 'var(--text-faint)',
-              }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--bg-hover)', border: `2px solid ${s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700, color: s.done ? '#111' : s.active ? '#fff' : 'var(--text-faint)' }}>
                 {s.done ? '✓' : s.n}
               </div>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: s.done || s.active ? 'var(--text-primary)' : 'var(--text-faint)' }}>
-                {s.label}
-              </span>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: s.done || s.active ? 'var(--text-primary)' : 'var(--text-faint)' }}>{s.label}</span>
             </div>
-            {i < arr.length - 1 && (
-              <div style={{ width: '40px', height: '2px', background: s.done ? 'var(--gold)' : 'var(--border)', margin: '0 4px', marginBottom: '16px' }} />
-            )}
+            {i < arr.length - 1 && <div style={{ width: '40px', height: '2px', background: s.done ? 'var(--gold)' : 'var(--border)', margin: '0 4px', marginBottom: '16px' }} />}
           </div>
         ))}
       </div>
@@ -61,15 +44,6 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-function Row({ label, value, muted }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', paddingBottom: '0.5rem', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-      <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', flexShrink: 0 }}>{label}</span>
-      <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: muted ? 'var(--text-muted)' : 'var(--text-primary)', textAlign: 'right' }}>{value}</span>
-    </div>
-  );
-}
-
 function ReviewForm({ programId }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,50 +56,37 @@ function ReviewForm({ programId }) {
 
   const [participant, setParticipant] = useState(null);
   const [program, setProgram] = useState(null);
-  const [family, setFamily] = useState(null);
-  const [contacts, setContacts] = useState([]);
-  const [familyId, setFamilyId] = useState(null);
   const [healthData, setHealthData] = useState(null);
   const [agreementData, setAgreementData] = useState(null);
   const [eligibleSiblings, setEligibleSiblings] = useState([]);
   const [cartItems, setCartItems] = useState([]);
-  const [gradeLevels, setGradeLevels] = useState([]);
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
-      setFamilyId(profile.family_id);
 
-      const [
-        { data: p },
-        { data: prog },
-        { data: allParticipants },
-        { data: fam },
-        { data: contactData },
-        { data: gradeData },
-      ] = await Promise.all([
-        supabase.from('participants').select('first_name, last_name, nickname, yog, gender_id, phone, email, genders(label)').eq('id', participantId).single(),
-        supabase.from('programs').select(`
-          id, label, fee, deposit_amount, balance_due_date,
-          yog_min, yog_max, costume_fee, other_fee, other_fee_label, schedule,
-          sessions!inner(
-            name,
-            seasons!inner(name, display_name)
-          )
-        `).eq('id', programId).single(),
+      // Fetch program separately to avoid nested join issues
+      const { data: prog } = await supabase
+        .from('programs')
+        .select('id, label, fee, deposit_amount, balance_due_date, yog_min, yog_max, costume_fee, other_fee, other_fee_label')
+        .eq('id', programId)
+        .single();
+
+      const { data: session } = prog ? await supabase
+        .from('sessions')
+        .select('name, seasons(name, display_name)')
+        .eq('id', (await supabase.from('programs').select('session_id').eq('id', programId).single()).data?.session_id)
+        .single() : { data: null };
+
+      const [{ data: p }, { data: allParticipants }] = await Promise.all([
+        supabase.from('participants').select('first_name, last_name, nickname').eq('id', participantId).single(),
         supabase.from('participants').select('id, first_name, last_name, yog').eq('family_id', profile.family_id).eq('is_active', true).order('first_name'),
-        supabase.from('families').select('email, street, street2, city, state, zip').eq('id', profile.family_id).single(),
-        supabase.from('contacts').select('*, relationships(label)').eq('family_id', profile.family_id).order('priority'),
-        supabase.from('grade_levels').select('yog, label, seasons!inner(is_active)').eq('seasons.is_active', true).order('yog'),
       ]);
 
       setParticipant(p);
-      setProgram(prog);
-      setFamily(fam);
-      setContacts(contactData || []);
-      setGradeLevels(gradeData || []);
+      setProgram(prog ? { ...prog, sessions: session } : null);
 
       const siblings = (allParticipants || []).filter(ap => {
         if (ap.id === participantId) return false;
@@ -147,12 +108,8 @@ function ReviewForm({ programId }) {
     load();
   }, [participantId, programId]);
 
-  function getGradeLabel(yog) {
-    return gradeLevels?.find(g => g.yog === yog)?.label || `Class of ${yog}`;
-  }
-
-  function addToCart() {
-    const item = {
+  function buildCartItem() {
+    return {
       participantId,
       participantName: `${participant.first_name} ${participant.last_name}`,
       programId,
@@ -161,6 +118,10 @@ function ReviewForm({ programId }) {
       deposit: program.deposit_amount,
       financialAid,
     };
+  }
+
+  function saveToCart() {
+    const item = buildCartItem();
     const existing = cartItems.filter(c => c.participantId !== participantId);
     const newCart = [...existing, item];
     setCartItems(newCart);
@@ -170,16 +131,15 @@ function ReviewForm({ programId }) {
 
   async function handleProceedToPayment() {
     setError('');
+    if (!healthData) { setError('Health information is missing. Please go back to the health form.'); return; }
+    if (!agreementData) { setError('Agreement signatures are missing. Please go back to the agreements page.'); return; }
     setSubmitting(true);
-    if (!healthData) { setError('Health information is missing. Please go back to the health form.'); setSubmitting(false); return; }
-    if (!agreementData) { setError('Agreement signatures are missing. Please go back to the agreements page.'); setSubmitting(false); return; }
-    const newCart = addToCart();
-    sessionStorage.setItem(`cart_${programId}`, JSON.stringify(newCart));
+    saveToCart();
     router.push(`/register/${programId}/payment`);
   }
 
-  function handleAddAnotherParticipant(siblingId) {
-    addToCart();
+  function handleSaveAndAddAnother(siblingId) {
+    saveToCart();
     router.push(`/register/${programId}?participant=${siblingId}`);
   }
 
@@ -188,18 +148,18 @@ function ReviewForm({ programId }) {
   }
 
   const seasonDisplay = program?.sessions?.seasons?.display_name || program?.sessions?.seasons?.name || '—';
-  const sessionName = program?.sessions?.name || '—';
   const totalFee = (program?.fee || 0) + (program?.costume_fee || 0) + (program?.other_fee || 0);
   const deposit = program?.deposit_amount || 0;
   const balance = totalFee - deposit;
-  const primaryContact = contacts.find(c => c.priority === 1);
-  const secondaryContact = contacts.find(c => c.priority === 2);
 
   const allCartItems = [
     ...cartItems.filter(c => c.participantId !== participantId),
-    { participantId, participantName: `${participant?.first_name} ${participant?.last_name}`, programLabel: program?.label, fee: program?.fee, deposit: program?.deposit_amount, financialAid },
+    buildCartItem(),
   ];
   const totalDeposit = allCartItems.reduce((sum, item) => sum + (item.deposit || 0), 0);
+
+  // Eligible siblings not yet in cart
+  const addableParticipants = eligibleSiblings.filter(s => !cartItems.some(c => c.participantId === s.id));
 
   return (
     <div>
@@ -218,27 +178,16 @@ function ReviewForm({ programId }) {
         {/* Header */}
         <div style={{ background: 'var(--bg-hover)', borderBottom: '1px solid var(--border)', padding: '0.875rem 1.25rem' }}>
           <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '0.15rem' }}>Registration</p>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.1rem' }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             {participant?.first_name} {participant?.last_name}
-            {participant?.nickname && (
-              <span style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontWeight: 400, fontSize: '0.9rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>"{participant.nickname}"</span>
-            )}
+            {participant?.nickname && <span style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontWeight: 400, fontSize: '0.9rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>"{participant.nickname}"</span>}
           </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {getGradeLabel(participant?.yog)} · {participant?.genders?.label}
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+            {program?.label} · {seasonDisplay} Season
           </p>
         </div>
 
         <div style={{ padding: '1.25rem' }}>
-
-          {/* Program info */}
-          <div style={{ marginBottom: '1.25rem' }}>
-            <Row label="Program" value={program?.label} />
-            <Row label="Season" value={`${seasonDisplay} Season`} />
-            <Row label="Session" value={`${sessionName} Session`} />
-            <Row label="Schedule" value={program?.schedule || 'TBD'} muted />
-            <Row label="Registration Date" value={new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} muted />
-          </div>
 
           {/* Health summary */}
           {healthData && (
@@ -255,13 +204,7 @@ function ReviewForm({ programId }) {
                 { label: 'Concussion History', flag: healthData.concussion_flag, notes: healthData.concussion_date ? `Date: ${formatDate(healthData.concussion_date)}` : null },
               ].map(item => (
                 <div key={item.label} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.4rem', alignItems: 'flex-start' }}>
-                  <span style={{
-                    fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 700,
-                    letterSpacing: '0.06em', padding: '0.15rem 0.4rem', borderRadius: '3px', flexShrink: 0,
-                    border: `1px solid ${item.flag ? 'var(--red)' : 'var(--border)'}`,
-                    color: item.flag ? 'var(--red)' : 'var(--text-faint)',
-                    background: item.flag ? '#1a0505' : 'transparent',
-                  }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', padding: '0.15rem 0.4rem', borderRadius: '3px', flexShrink: 0, border: `1px solid ${item.flag ? 'var(--red)' : 'var(--border)'}`, color: item.flag ? 'var(--red)' : 'var(--text-faint)', background: item.flag ? '#1a0505' : 'transparent' }}>
                     {item.flag ? 'YES' : 'NO'}
                   </span>
                   <div>
@@ -277,22 +220,6 @@ function ReviewForm({ programId }) {
                   <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{healthData.general_comments}</p>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Agreements summary */}
-          {agreementData && (
-            <div style={{ marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>Agreements Signed</p>
-                <a href={`/register/${programId}/agreements?participant=${participantId}`} style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', textDecoration: 'none' }}>Edit</a>
-              </div>
-              {agreementData.map(a => (
-                <div key={a.type} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{DOC_TITLES[a.type] || a.type}</span>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--gold)' }}>✓ {a.agreed_by}</span>
-                </div>
-              ))}
             </div>
           )}
 
@@ -316,13 +243,12 @@ function ReviewForm({ programId }) {
                   <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-primary)' }}>{formatCurrency(program.other_fee)}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '0.35rem' }}>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total</span>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatCurrency(totalFee)}</span>
               </div>
             </div>
 
-            {/* Deposit / Balance box */}
             <div style={{ background: 'var(--bg-hover)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
               <div>
                 <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '0.2rem' }}>Deposit Due Today</p>
@@ -343,64 +269,57 @@ function ReviewForm({ programId }) {
         </div>
       </div>
 
+      {/* ── Save & Add Another Participant ── */}
+      {addableParticipants.length > 0 && (
+        <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1rem' }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+            Register Another Participant for {program?.label}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {addableParticipants.map(s => (
+              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                <div>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-primary)' }}>{s.first_name} {s.last_name}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)' }}>Deposit: {formatCurrency(deposit)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSaveAndAddAnother(s.id)}
+                  className="tyt-btn tyt-btn-secondary"
+                  style={{ fontSize: '0.75rem', padding: '0.4rem 1rem', whiteSpace: 'nowrap' }}
+                >
+                  Save &amp; Add →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Financial Aid ── */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
-          <input
-            type="checkbox"
-            id="financial_aid"
-            checked={financialAid}
-            onChange={e => setFinancialAid(e.target.checked)}
-            style={{ width: '16px', height: '16px', accentColor: 'var(--red)', cursor: 'pointer', marginTop: '3px', flexShrink: 0 }}
-          />
+          <input type="checkbox" id="financial_aid" checked={financialAid} onChange={e => setFinancialAid(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: 'var(--red)', cursor: 'pointer', marginTop: '3px', flexShrink: 0 }} />
           <label htmlFor="financial_aid" style={{ cursor: 'pointer' }}>
-            <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
-              I am applying for financial aid
-            </p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.3rem' }}>I am applying for financial aid</p>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              Check this box if you plan to submit a financial aid application. You will still need to pay the {formatCurrency(deposit)} deposit today.
-              TYT will adjust your balance upon review of your application.{' '}
-              <a href={FA_LINK} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)', textDecoration: 'underline' }}>
-                Download the financial aid application here.
-              </a>
+              Check this box if you plan to submit a financial aid application. You will still need to pay the {formatCurrency(deposit)} deposit today. TYT will adjust your balance upon review of your application.{' '}
+              <a href={FA_LINK} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)', textDecoration: 'underline' }}>Download the financial aid application here.</a>
             </p>
           </label>
         </div>
       </div>
 
-      {/* ── Cart summary (other participants) ── */}
+      {/* ── Cart summary (other participants already added) ── */}
       {cartItems.filter(c => c.participantId !== participantId).length > 0 && (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1rem' }}>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.75rem' }}>
-            Also in Your Cart
-          </p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.75rem' }}>Also in Your Cart</p>
           {cartItems.filter(c => c.participantId !== participantId).map((item, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-primary)' }}>{item.participantName}</span>
               <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--gold)' }}>{formatCurrency(item.deposit)} deposit</span>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* ── Add another participant ── */}
-      {eligibleSiblings.filter(s => !cartItems.some(c => c.participantId === s.id) && s.id !== participantId).length > 0 && (
-        <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1rem' }}>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-            Add Another Participant to This Registration
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {eligibleSiblings
-              .filter(s => !cartItems.some(c => c.participantId === s.id) && s.id !== participantId)
-              .map(s => (
-                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-primary)' }}>{s.first_name} {s.last_name}</span>
-                  <button type="button" onClick={() => handleAddAnotherParticipant(s.id)} className="tyt-btn tyt-btn-secondary" style={{ fontSize: '0.75rem', padding: '0.3rem 0.875rem' }}>
-                    + Add
-                  </button>
-                </div>
-              ))}
-          </div>
         </div>
       )}
 
@@ -411,12 +330,10 @@ function ReviewForm({ programId }) {
             <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
               Total Due Today ({allCartItems.length} registration{allCartItems.length !== 1 ? 's' : ''})
             </p>
-            <p style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 800, color: 'var(--gold)', lineHeight: 1 }}>
-              {formatCurrency(totalDeposit)}
-            </p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 800, color: 'var(--gold)', lineHeight: 1 }}>{formatCurrency(totalDeposit)}</p>
           </div>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)', textAlign: 'right' }}>
-            {formatCurrency(deposit)} deposit × {allCartItems.length}
+            {formatCurrency(deposit)} × {allCartItems.length}
           </p>
         </div>
       </div>
@@ -433,26 +350,12 @@ export default function ReviewPage({ params }) {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
-      <nav style={{
-        background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
-        padding: '0 1.5rem', display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', height: '64px',
-        position: 'sticky', top: 0, zIndex: 100,
-      }}>
+      <nav style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px', position: 'sticky', top: 0, zIndex: 100 }}>
         <a href="/register" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={48} height={48} style={{ objectFit: 'contain' }} />
         </a>
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
-          Registration
-        </span>
-        <a href={`/register/${programId}/agreements`} style={{
-          fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600,
-          letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)',
-          textDecoration: 'none', border: '1px solid var(--gold)',
-          borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.85rem',
-        }}>
-          ← Back
-        </a>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>Registration</span>
+        <a href={`/register/${programId}/agreements`} style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', textDecoration: 'none', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.85rem' }}>← Back</a>
       </nav>
 
       <StepBar />
