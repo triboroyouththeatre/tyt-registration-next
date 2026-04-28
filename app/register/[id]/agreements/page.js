@@ -5,11 +5,19 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
+const DOC_ORDER = ['payment_agreement', 'participant_rules', 'liability_waiver'];
+
+const DOC_TITLES = {
+  payment_agreement: 'Registration Fee Policy',
+  participant_rules: 'Participation Policy & Behavior Standards',
+  liability_waiver: 'Health & Safety — Liability Waiver and Release of Claims',
+};
+
 const STEP_INDICATOR = [
-  { n: 1, label: 'Health', done: true },
-  { n: 2, label: 'Agreements', active: true },
-  { n: 3, label: 'Review', active: false },
-  { n: 4, label: 'Payment', active: false },
+  { n: 1, label: 'Health', done: true, active: false },
+  { n: 2, label: 'Agreements', done: false, active: true },
+  { n: 3, label: 'Review', done: false, active: false },
+  { n: 4, label: 'Payment', done: false, active: false },
 ];
 
 function StepBar() {
@@ -25,7 +33,7 @@ function StepBar() {
                 border: `2px solid ${s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--border)'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700,
-                color: s.done || s.active ? '#111' : 'var(--text-faint)',
+                color: s.done ? '#111' : s.active ? '#fff' : 'var(--text-faint)',
               }}>
                 {s.done ? '✓' : s.n}
               </div>
@@ -47,34 +55,86 @@ function StepBar() {
   );
 }
 
-function DocumentAgreement({ doc, index, total, agreed, onAgree, signatureName, onSignatureChange }) {
+function PrintButton({ doc }) {
+  function handlePrint() {
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${DOC_TITLES[doc.type]}</title>
+        <style>
+          body { font-family: Georgia, serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; color: #111; line-height: 1.7; font-size: 14px; }
+          h1 { font-size: 1.1rem; border-bottom: 2px solid #111; padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+          p { margin-bottom: 1rem; }
+          ul { margin: 0.5rem 0 1rem 1.5rem; }
+          li { margin-bottom: 0.4rem; }
+          strong { font-weight: bold; }
+          em { font-style: italic; }
+          u { text-decoration: underline; }
+          a { color: #b40000; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <h1>${DOC_TITLES[doc.type]}</h1>
+        ${doc.content}
+        <p style="margin-top:2rem;font-size:12px;color:#666;">Triboro Youth Theatre &mdash; ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handlePrint}
+      style={{
+        background: 'none',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-sm)',
+        padding: '0.25rem 0.65rem',
+        color: 'var(--text-faint)',
+        fontFamily: 'var(--font-display)',
+        fontSize: '0.65rem',
+        fontWeight: 600,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.3rem',
+      }}
+    >
+      ⎙ Print / Save
+    </button>
+  );
+}
+
+function DocumentCard({ doc, index, total }) {
   const scrollRef = useRef(null);
   const [scrolled, setScrolled] = useState(false);
 
   function handleScroll() {
     const el = scrollRef.current;
     if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 40;
-    if (atBottom) setScrolled(true);
+    if (el.scrollHeight - el.scrollTop <= el.clientHeight + 40) setScrolled(true);
   }
-
-  const docTitles = {
-    liability_waiver: 'Liability Waiver & Release of Claims',
-    participant_rules: 'Company Rules & Guidelines',
-    payment_agreement: 'Registration Fee Policy & Agreement',
-  };
 
   return (
     <div style={{
       background: 'var(--bg-card)',
-      border: `1px solid ${agreed ? 'var(--gold)' : 'var(--border)'}`,
+      border: '1px solid var(--border)',
       borderRadius: 'var(--radius-md)',
       overflow: 'hidden',
-      marginBottom: '1.5rem',
+      marginBottom: '1rem',
     }}>
       {/* Header */}
       <div style={{
-        background: agreed ? '#0d1a0a' : 'var(--bg-hover)',
+        background: 'var(--bg-hover)',
         borderBottom: '1px solid var(--border)',
         padding: '0.875rem 1.25rem',
         display: 'flex',
@@ -87,97 +147,48 @@ function DocumentAgreement({ doc, index, total, agreed, onAgree, signatureName, 
             Document {index} of {total}
           </p>
           <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
-            {docTitles[doc.type] || doc.type}
+            {DOC_TITLES[doc.type]}
           </p>
         </div>
-        {agreed && (
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', border: '1px solid var(--gold)', borderRadius: '3px', padding: '0.2rem 0.5rem', flexShrink: 0 }}>
-            ✓ Agreed
-          </span>
-        )}
+        <PrintButton doc={doc} />
       </div>
 
-      {/* Scroll area */}
+      {/* Scrollable content */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         style={{
-          height: '220px',
+          height: '240px',
           overflowY: 'scroll',
           padding: '1.25rem',
           background: 'var(--bg-dark)',
-          fontFamily: 'var(--font-body)',
-          fontSize: '0.82rem',
-          color: 'var(--text-muted)',
-          lineHeight: 1.7,
-          whiteSpace: 'pre-wrap',
+          position: 'relative',
         }}
       >
-        {doc.content}
+        <div
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.82rem',
+            color: 'var(--text-muted)',
+            lineHeight: 1.75,
+          }}
+          dangerouslySetInnerHTML={{ __html: doc.content }}
+        />
         {!scrolled && (
           <div style={{
             position: 'sticky',
             bottom: 0,
-            left: 0,
-            right: 0,
             textAlign: 'center',
             padding: '0.5rem',
             background: 'linear-gradient(transparent, var(--bg-dark))',
-            fontFamily: 'var(--font-display)',
-            fontSize: '0.65rem',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            color: 'var(--text-faint)',
             pointerEvents: 'none',
           }}>
-            ↓ Scroll to read
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>
+              ↓ Scroll to read
+            </span>
           </div>
         )}
       </div>
-
-      {/* Agreement section */}
-      {!agreed ? (
-        <div style={{ padding: '1.25rem', borderTop: '1px solid var(--border)' }}>
-          {!scrolled && (
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-faint)', marginBottom: '1rem', fontStyle: 'italic' }}>
-              Please scroll through the document above before signing.
-            </p>
-          )}
-          <div style={{ marginBottom: '1rem' }}>
-            <label className="tyt-label">
-              Type your full name to sign <span style={{ color: 'var(--red)' }}>*</span>
-            </label>
-            <input
-              type="text"
-              value={signatureName}
-              onChange={e => onSignatureChange(e.target.value)}
-              placeholder="Your full name"
-              className="tyt-input"
-              disabled={!scrolled}
-              style={{ opacity: scrolled ? 1 : 0.5 }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onAgree}
-            disabled={!scrolled || !signatureName.trim()}
-            className="tyt-btn tyt-btn-primary"
-            style={{
-              width: '100%',
-              opacity: scrolled && signatureName.trim() ? 1 : 0.5,
-              cursor: scrolled && signatureName.trim() ? 'pointer' : 'not-allowed',
-            }}
-          >
-            I Agree &amp; Sign
-          </button>
-        </div>
-      ) : (
-        <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Signed as: <strong style={{ color: 'var(--text-primary)' }}>{signatureName}</strong>
-          </p>
-        </div>
-      )}
     </div>
   );
 }
@@ -188,10 +199,9 @@ function AgreementsForm({ programId }) {
   const participantId = searchParams.get('participant');
 
   const [documents, setDocuments] = useState([]);
-  const [agreed, setAgreed] = useState({});
-  const [signatures, setSignatures] = useState({});
   const [participant, setParticipant] = useState(null);
   const [program, setProgram] = useState(null);
+  const [signatureName, setSignatureName] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -199,55 +209,39 @@ function AgreementsForm({ programId }) {
     async function load() {
       const supabase = createClient();
       const [{ data: docs }, { data: p }, { data: prog }] = await Promise.all([
-        supabase.from('policy_documents').select('id, type, content').eq('is_current', true).order('type'),
+        supabase.from('policy_documents').select('id, type, content').eq('is_current', true),
         supabase.from('participants').select('first_name, last_name').eq('id', participantId).single(),
         supabase.from('programs').select('label, sessions(name, seasons(display_name, name))').eq('id', programId).single(),
       ]);
 
-      // Order: participant_rules, liability_waiver, payment_agreement
-      const ordered = ['participant_rules', 'liability_waiver', 'payment_agreement']
-        .map(type => docs?.find(d => d.type === type))
-        .filter(Boolean);
-
+      // Sort by defined order
+      const ordered = DOC_ORDER.map(type => docs?.find(d => d.type === type)).filter(Boolean);
       setDocuments(ordered);
       setParticipant(p);
       setProgram(prog);
-
-      const initAgreed = {};
-      const initSigs = {};
-      ordered.forEach(d => { initAgreed[d.id] = false; initSigs[d.id] = ''; });
-      setAgreed(initAgreed);
-      setSignatures(initSigs);
     }
     load();
   }, [participantId, programId]);
-
-  function handleAgree(docId) {
-    if (!signatures[docId]?.trim()) return;
-    setAgreed(a => ({ ...a, [docId]: true }));
-  }
-
-  function handleSignatureChange(docId, val) {
-    setSignatures(s => ({ ...s, [docId]: val }));
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
-    const allAgreed = documents.every(d => agreed[d.id]);
-    if (!allAgreed) {
-      setError('You must agree to all documents before continuing.');
+    if (!signatureName.trim()) {
+      setError('Please type your full name to sign the agreements.');
+      return;
+    }
+    if (signatureName.trim().split(' ').length < 2) {
+      setError('Please enter your full name (first and last) to sign.');
       return;
     }
 
     setSaving(true);
 
-    // Store agreement data in sessionStorage
     const agreementData = documents.map(d => ({
       policy_document_id: d.id,
       type: d.type,
-      agreed_by: signatures[d.id],
+      agreed_by: signatureName.trim(),
       agreed_at: new Date().toISOString(),
     }));
     sessionStorage.setItem(`agreements_${programId}_${participantId}`, JSON.stringify(agreementData));
@@ -255,7 +249,6 @@ function AgreementsForm({ programId }) {
     router.push(`/register/${programId}/review?participant=${participantId}`);
   }
 
-  const allAgreed = documents.length > 0 && documents.every(d => agreed[d.id]);
   const seasonDisplay = program?.sessions?.seasons?.display_name || program?.sessions?.seasons?.name;
 
   return (
@@ -279,27 +272,61 @@ function AgreementsForm({ programId }) {
         Agreements
       </h2>
       <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-        Please read and sign each document below. All three are required to complete registration.
+        Please read all three documents below. A single signature at the bottom applies to all three.
       </p>
 
+      {/* Documents */}
       {documents.map((doc, i) => (
-        <DocumentAgreement
+        <DocumentCard
           key={doc.id}
           doc={doc}
           index={i + 1}
           total={documents.length}
-          agreed={agreed[doc.id]}
-          onAgree={() => handleAgree(doc.id)}
-          signatureName={signatures[doc.id] || ''}
-          onSignatureChange={val => handleSignatureChange(doc.id, val)}
         />
       ))}
 
+      {/* Single signature block */}
+      <div style={{
+        background: '#0d1a0a',
+        border: '1px solid var(--gold)',
+        borderRadius: 'var(--radius-md)',
+        padding: '1.5rem',
+        marginTop: '0.5rem',
+        marginBottom: '1.75rem',
+      }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.75rem' }}>
+          Electronic Signature
+        </p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '1.25rem' }}>
+          By typing your name below and clicking "Continue", you acknowledge that you have read and agree
+          to all three policies above. You understand that your typed name constitutes a legally binding
+          electronic signature under the Electronic Signatures in Global and National Commerce Act
+          (E-SIGN Act, 15 U.S.C. § 7001) and applicable state law, and carries the same legal weight
+          as a handwritten signature.
+        </p>
+        <label className="tyt-label" style={{ color: 'var(--text-primary)' }}>
+          Full Name <span style={{ color: 'var(--red)' }}>*</span>
+        </label>
+        <input
+          type="text"
+          value={signatureName}
+          onChange={e => setSignatureName(e.target.value)}
+          placeholder="Type your full name"
+          className="tyt-input"
+          style={{ marginTop: '0.4rem' }}
+        />
+        {signatureName.trim() && (
+          <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontSize: '1rem', color: 'var(--gold)', marginTop: '0.75rem' }}>
+            {signatureName}
+          </p>
+        )}
+      </div>
+
       <button
         type="submit"
-        disabled={saving || !allAgreed}
+        disabled={saving || !signatureName.trim()}
         className="tyt-btn tyt-btn-primary tyt-btn-full"
-        style={{ opacity: allAgreed ? 1 : 0.5, cursor: allAgreed ? 'pointer' : 'not-allowed' }}
+        style={{ opacity: signatureName.trim() ? 1 : 0.5, cursor: signatureName.trim() ? 'pointer' : 'not-allowed' }}
       >
         {saving ? 'Saving...' : 'Continue to Review →'}
       </button>
@@ -324,12 +351,15 @@ export default function AgreementsPage({ params }) {
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
           Registration
         </span>
-        <a href="/register" style={{
-          fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600,
-          letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)',
-          textDecoration: 'none', border: '1px solid var(--gold)',
-          borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.85rem',
-        }}>
+        <a
+          href={`/register/${programId}`}
+          style={{
+            fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600,
+            letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)',
+            textDecoration: 'none', border: '1px solid var(--gold)',
+            borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.85rem',
+          }}
+        >
           ← Back
         </a>
       </nav>
@@ -345,6 +375,16 @@ export default function AgreementsPage({ params }) {
           <AgreementsForm programId={programId} />
         </Suspense>
       </main>
+
+      {/* Inline styles for HTML content inside documents */}
+      <style>{`
+        .doc-content p { margin-bottom: 0.75rem; }
+        .doc-content ul { margin: 0.5rem 0 0.75rem 1.25rem; }
+        .doc-content li { margin-bottom: 0.3rem; }
+        .doc-content strong { color: var(--text-primary); }
+        .doc-content a { color: var(--red); }
+        .doc-content u { text-decoration: underline; }
+      `}</style>
     </div>
   );
 }
