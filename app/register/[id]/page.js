@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
 
 function YesNo({ name, value, onChange }) {
@@ -248,7 +248,8 @@ function HealthForm({ programId }) {
   );
 }
 
-export default function HealthPage({ params }) {
+export default function HealthPage() {
+  const params = useParams();
   const programId = params.id;
 
   return (
