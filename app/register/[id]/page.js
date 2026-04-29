@@ -5,6 +5,17 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
 
+const AWARD_LEVELS = [
+  { id: '386e44d8-0a4d-4462-85f1-adaa8231a287', label: 'No Award',      show_count: 0  },
+  { id: 'a502ce6b-bb14-4d74-b46e-48f2a99b9066', label: '5 Show Award',  show_count: 5  },
+  { id: '7dbcd732-c2d9-4571-ae2f-32ee7cde1a7e', label: '10 Show Award', show_count: 10 },
+  { id: '6d2de5d1-55aa-4939-a87f-dbd34cc640db', label: '15 Show Award', show_count: 15 },
+  { id: '09479537-63e1-44f5-bd2e-20e84ac66dd1', label: '20 Show Award', show_count: 20 },
+  { id: '576fad59-97da-45b8-9b77-5b61641f4127', label: '25 Show Award', show_count: 25 },
+  { id: '73278f6a-a642-4ad3-ad4d-d6012b9a0a03', label: '30 Show Award', show_count: 30 },
+  { id: '4ee7fa1e-e3e8-485b-bb61-3e8a4949a869', label: '35 Show Award', show_count: 35 },
+];
+
 function YesNo({ name, value, onChange }) {
   return (
     <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -56,6 +67,7 @@ function HealthQuestion({ title, description, name, value, onChange, children })
 }
 
 const EMPTY_FORM = {
+  award_level_id: '',
   academic_flag: null, academic_notes: '',
   behavioral_flag: null, behavioral_notes: '',
   allergies_flag: null, allergies_notes: '', epipen: null,
@@ -93,20 +105,21 @@ function HealthForm({ programId }) {
       if (saved) {
         const parsed = JSON.parse(saved);
         setForm({
-          academic_flag: parsed.academic_flag ?? null,
-          academic_notes: parsed.academic_notes || '',
-          behavioral_flag: parsed.behavioral_flag ?? null,
-          behavioral_notes: parsed.behavioral_notes || '',
-          allergies_flag: parsed.allergies_flag ?? null,
-          allergies_notes: parsed.allergies_notes || '',
-          epipen: parsed.epipen ?? null,
-          asthma: parsed.asthma ?? null,
-          concussion_flag: parsed.concussion_flag ?? null,
-          concussion_date: parsed.concussion_date || '',
-          concussion_cleared: parsed.concussion_cleared ?? null,
-          concussion_symptoms: parsed.concussion_symptoms ?? null,
+          award_level_id:            parsed.award_level_id            ?? '',
+          academic_flag:             parsed.academic_flag             ?? null,
+          academic_notes:            parsed.academic_notes            || '',
+          behavioral_flag:           parsed.behavioral_flag           ?? null,
+          behavioral_notes:          parsed.behavioral_notes          || '',
+          allergies_flag:            parsed.allergies_flag            ?? null,
+          allergies_notes:           parsed.allergies_notes           || '',
+          epipen:                    parsed.epipen                    ?? null,
+          asthma:                    parsed.asthma                    ?? null,
+          concussion_flag:           parsed.concussion_flag           ?? null,
+          concussion_date:           parsed.concussion_date           || '',
+          concussion_cleared:        parsed.concussion_cleared        ?? null,
+          concussion_symptoms:       parsed.concussion_symptoms       ?? null,
           concussion_symptoms_notes: parsed.concussion_symptoms_notes || '',
-          general_comments: parsed.general_comments || '',
+          general_comments:          parsed.general_comments          || '',
         });
         if (parsed.medical_authorization) setMedicalAuth(true);
       }
@@ -126,10 +139,21 @@ function HealthForm({ programId }) {
     e.preventDefault();
     setError('');
 
+    // Award level required
+    if (!form.award_level_id) {
+      setError('Please select an award level before continuing.');
+      return;
+    }
+
+    // All Yes/No questions required
     const required = ['academic_flag', 'behavioral_flag', 'allergies_flag', 'asthma', 'concussion_flag'];
     for (const field of required) {
-      if (form[field] === null) { setError('Please answer all Yes/No questions before continuing.'); return; }
+      if (form[field] === null) {
+        setError('Please answer all Yes/No questions before continuing.');
+        return;
+      }
     }
+
     if (form.academic_flag && !form.academic_notes.trim()) { setError('Please describe the academic considerations.'); return; }
     if (form.behavioral_flag && !form.behavioral_notes.trim()) { setError('Please describe the behavioral considerations.'); return; }
     if (form.allergies_flag) {
@@ -156,6 +180,7 @@ function HealthForm({ programId }) {
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error">{error}</div>}
 
+      {/* Context banner */}
       {participant && program && (
         <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1.25rem', marginBottom: '1.5rem' }}>
           <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '0.2rem' }}>Registering</p>
@@ -164,8 +189,54 @@ function HealthForm({ programId }) {
         </div>
       )}
 
-      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Health Information</h2>
-      <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+      {/* ── Award Level ── */}
+      <div style={{ background: 'var(--bg-card)', border: `1px solid ${form.award_level_id ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1.5rem' }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+          Production Award <span style={{ color: 'var(--red)' }}>*</span>
+        </p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.65, marginBottom: '1rem' }}>
+          We recognize actors who have participated in 5+ productions with TYT, in increments of 5. Please choose from the list if your actor is receiving an award at the conclusion of <strong style={{ color: 'var(--text-primary)' }}>this</strong> session.
+        </p>
+        <div style={{ background: '#1a0d00', border: '1px solid #b8860b', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#e0bf5c', lineHeight: 1.6 }}>
+            <strong>Please note:</strong> This selection is the responsibility of the parent and <em>must</em> be chosen at the time of registration to ensure award delivery by showtime. While we try to avoid upset actors, last minute additions may not be accommodated.
+          </p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          {AWARD_LEVELS.map(level => (
+            <label
+              key={level.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem',
+                padding: '0.6rem 0.875rem',
+                borderRadius: 'var(--radius-sm)',
+                border: `1px solid ${form.award_level_id === level.id ? 'var(--gold)' : 'var(--border)'}`,
+                background: form.award_level_id === level.id ? '#1a1200' : 'transparent',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <input
+                type="radio"
+                name="award_level_id"
+                value={level.id}
+                checked={form.award_level_id === level.id}
+                onChange={handleChange}
+                style={{ accentColor: 'var(--gold)', width: '16px', height: '16px', flexShrink: 0 }}
+              />
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: form.award_level_id === level.id ? 'var(--gold)' : 'var(--text-primary)' }}>
+                {level.label}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Health Information ── */}
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+        Health Information
+      </h2>
+      <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.25rem' }}>
         All questions are required. This information is kept confidential and shared only with TYT staff as needed.
       </p>
 
@@ -221,11 +292,16 @@ function HealthForm({ programId }) {
         </div>
       </HealthQuestion>
 
+      {/* General comments */}
       <div className="tyt-card" style={{ marginBottom: '1.5rem' }}>
-        <label className="tyt-label">Additional Comments <span style={{ color: 'var(--text-faint)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+        <label className="tyt-label">
+          Additional Comments{' '}
+          <span style={{ color: 'var(--text-faint)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+        </label>
         <textarea name="general_comments" value={form.general_comments} onChange={handleChange} rows={3} className="tyt-input" style={{ resize: 'vertical' }} placeholder="Anything else TYT staff should know about this participant..." />
       </div>
 
+      {/* Medical authorization */}
       <div style={{ background: '#1a0d00', border: `1px solid ${medicalAuth ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1.75rem' }}>
         <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.75rem' }}>
           Medical Authorization <span style={{ color: 'var(--red)' }}>*</span>
@@ -250,12 +326,12 @@ function HealthForm({ programId }) {
 
 export default function HealthPage() {
   const params = useParams();
-  const programId = params.id;
+  const programId = params?.id;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
       <nav style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px', position: 'sticky', top: 0, zIndex: 100 }}>
-        <a href="/register" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+        <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={48} height={48} style={{ objectFit: 'contain' }} />
         </a>
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>Registration</span>
@@ -264,10 +340,17 @@ export default function HealthPage() {
 
       <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0.75rem 1.5rem' }}>
         <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
-          {[{ n: 1, label: 'Health', active: true, done: false }, { n: 2, label: 'Agreements', active: false, done: false }, { n: 3, label: 'Review', active: false, done: false }, { n: 4, label: 'Payment', active: false, done: false }].map((s, i, arr) => (
+          {[
+            { n: 1, label: 'Health',     active: true,  done: false },
+            { n: 2, label: 'Agreements', active: false, done: false },
+            { n: 3, label: 'Review',     active: false, done: false },
+            { n: 4, label: 'Payment',    active: false, done: false },
+          ].map((s, i, arr) => (
             <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: s.active ? 'var(--red)' : 'var(--bg-hover)', border: `2px solid ${s.active ? 'var(--red)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700, color: s.active ? '#fff' : 'var(--text-faint)' }}>{s.n}</div>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: s.active ? 'var(--red)' : 'var(--bg-hover)', border: `2px solid ${s.active ? 'var(--red)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700, color: s.active ? '#fff' : 'var(--text-faint)' }}>
+                  {s.n}
+                </div>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: s.active ? 'var(--text-primary)' : 'var(--text-faint)', whiteSpace: 'nowrap' }}>{s.label}</span>
               </div>
               {i < arr.length - 1 && <div style={{ width: '40px', height: '2px', background: 'var(--border)', margin: '0 4px', marginBottom: '16px' }} />}
