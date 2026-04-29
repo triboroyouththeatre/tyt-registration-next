@@ -202,34 +202,20 @@ function HealthForm({ programId }) {
             <strong>Please note:</strong> This selection is the responsibility of the parent and <em>must</em> be chosen at the time of registration to ensure award delivery by showtime. While we try to avoid upset actors, last minute additions may not be accommodated.
           </p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+        <select
+          name="award_level_id"
+          value={form.award_level_id}
+          onChange={handleChange}
+          className="tyt-input"
+          style={{ maxWidth: '280px' }}
+        >
+          <option value="">— Select an award level —</option>
           {AWARD_LEVELS.map(level => (
-            <label
-              key={level.id}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                padding: '0.6rem 0.875rem',
-                borderRadius: 'var(--radius-sm)',
-                border: `1px solid ${form.award_level_id === level.id ? 'var(--gold)' : 'var(--border)'}`,
-                background: form.award_level_id === level.id ? '#1a1200' : 'transparent',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              <input
-                type="radio"
-                name="award_level_id"
-                value={level.id}
-                checked={form.award_level_id === level.id}
-                onChange={handleChange}
-                style={{ accentColor: 'var(--gold)', width: '16px', height: '16px', flexShrink: 0 }}
-              />
-              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: form.award_level_id === level.id ? 'var(--gold)' : 'var(--text-primary)' }}>
-                {level.label}
-              </span>
-            </label>
+            <option key={level.id} value={level.id}>
+              {level.label}
+            </option>
           ))}
-        </div>
+        </select>
       </div>
 
       {/* ── Health Information ── */}
