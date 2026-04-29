@@ -291,12 +291,7 @@ export default function ReviewPage() {
               <div style={{ background: 'var(--bg-hover)', borderBottom: '1px solid var(--border)', padding: '0.875rem 1.25rem' }}>
                 <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '0.15rem' }}>Registration</p>
                 <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  {participant.first_name} {participant.last_name}
-                  {participant.nickname && (
-                    <span style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontWeight: 400, fontSize: '0.9rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                      "{participant.nickname}"
-                    </span>
-                  )}
+                  {participant.nickname ? participant.nickname : participant.first_name} {participant.last_name}
                 </p>
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
                   {program.label}{seasonDisplay ? ` · ${seasonDisplay} Season` : ''}

@@ -220,13 +220,8 @@ export default function ConfirmationPage() {
                         </p>
                       )}
                       <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-  {p?.first_name} {p?.last_name}
-  {p?.nickname && (
-    <span style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontWeight: 400, fontSize: '0.9rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-      &ldquo;{p.nickname}&rdquo;
-    </span>
-  )}
-</p>
+                      {p?.nickname ? p.nickname : p?.first_name} {p?.last_name}
+                      </p>
                       <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {getGrade(p?.yog)}
                       </p>

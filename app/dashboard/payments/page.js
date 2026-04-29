@@ -21,7 +21,7 @@ function fmtDateTime(str) {
 
 function displayName(p) {
   if (!p) return '—';
-  if (p.nickname) return `"${p.nickname}" ${p.last_name}`;
+  if (p.nickname) return `${p.nickname} ${p.last_name}`;
   return `${p.first_name} ${p.last_name}`;
 }
 

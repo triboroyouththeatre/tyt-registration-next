@@ -274,21 +274,7 @@ function ParticipantDetail() {
             color: 'var(--text-primary)',
             marginBottom: '0.25rem',
           }}>
-            {participant.first_name} {participant.last_name}
-            {participant.nickname && (
-              <span style={{
-                fontFamily: 'var(--font-accent)',
-                fontStyle: 'italic',
-                fontWeight: 400,
-                fontSize: '1.1rem',
-                color: 'var(--text-muted)',
-                marginLeft: '0.75rem',
-                textTransform: 'none',
-                letterSpacing: 0,
-              }}>
-                &ldquo;{participant.nickname}&rdquo;
-              </span>
-            )}
+            {participant.nickname ? participant.nickname : participant.first_name} {participant.last_name}
           </h1>
           <p style={{
             fontFamily: 'var(--font-accent)',
