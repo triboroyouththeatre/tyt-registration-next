@@ -13,7 +13,16 @@ function fmtDate(str) {
 
 function fmtDateTime(str) {
   if (!str) return '—';
-  return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return new Date(str).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+function displayName(p) {
+  if (!p) return '—';
+  if (p.nickname) return `"${p.nickname}" ${p.last_name}`;
+  return `${p.first_name} ${p.last_name}`;
 }
 
 export default async function PaymentsPage() {
@@ -30,43 +39,30 @@ export default async function PaymentsPage() {
 
   const familyId = profile?.family_id;
 
-  // Fetch all payments with related data
+  // Fetch payments — join only through registrations and participants (no carts→programs)
   const { data: payments } = await supabase
     .from('payments')
     .select(`
       id, amount, paid_at, created_at,
-      stripe_payment_intent_id, stripe_invoice_id,
+      stripe_payment_intent_id,
       payment_statuses(label),
       payment_types(label),
       registrations(
-        registration_number, total_fee, amount_paid,
-        participants(first_name, last_name, nickname),
-        carts(
-          programs:programs!inner(label, session_id,
-            sessions!inner(name,
-              seasons!inner(name, display_name)
-            )
-          )
-        )
+        id, registration_number, total_fee, amount_paid,
+        participants(first_name, last_name, nickname)
       )
     `)
     .eq('family_id', familyId)
     .order('paid_at', { ascending: false });
 
-  // Fetch all registrations to compute outstanding balances
+  // Fetch registrations with outstanding balances
+  // Join programs via session to get label — use a simpler path
   const { data: registrations } = await supabase
     .from('registrations')
     .select(`
       id, registration_number, total_fee, amount_paid,
       is_financial_aid_requested,
-      participants(first_name, last_name, nickname),
-      carts(
-        programs:programs!inner(label, balance_due_date,
-          sessions!inner(name,
-            seasons!inner(name, display_name)
-          )
-        )
-      )
+      participants(first_name, last_name, nickname)
     `)
     .eq('family_id', familyId)
     .order('registered_at', { ascending: false });
@@ -76,24 +72,8 @@ export default async function PaymentsPage() {
     return balance > 0.01 && !r.is_financial_aid_requested;
   });
 
-  const totalPaid = (payments || []).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const totalPaid      = (payments || []).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
   const totalOutstanding = outstandingRegs.reduce((sum, r) => sum + ((r.total_fee || 0) - (r.amount_paid || 0)), 0);
-
-  function displayName(participant) {
-    if (!participant) return '—';
-    const { first_name, last_name, nickname } = participant;
-    if (nickname) return `"${nickname}" ${last_name}`;
-    return `${first_name} ${last_name}`;
-  }
-
-  function getProgramLabel(reg) {
-    return reg?.carts?.programs?.label || '—';
-  }
-
-  function getSeasonLabel(reg) {
-    const s = reg?.carts?.programs?.sessions?.seasons;
-    return s?.display_name || s?.name || '';
-  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
@@ -141,7 +121,6 @@ export default async function PaymentsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {outstandingRegs.map(r => {
                 const balance = (r.total_fee || 0) - (r.amount_paid || 0);
-                const dueDate = r.carts?.programs?.balance_due_date;
                 return (
                   <div key={r.id} style={{ background: '#1a0a0a', border: '1px solid var(--red)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                     <div>
@@ -149,13 +128,8 @@ export default async function PaymentsPage() {
                         {displayName(r.participants)}
                       </p>
                       <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {getProgramLabel(r)}{getSeasonLabel(r) ? ` · ${getSeasonLabel(r)} Season` : ''} · #{r.registration_number}
+                        #{r.registration_number}
                       </p>
-                      {dueDate && (
-                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--red)', marginTop: '0.2rem' }}>
-                          Due by {fmtDate(dueDate + 'T00:00:00')}
-                        </p>
-                      )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--red)' }}>{fmt(balance)}</p>
@@ -168,7 +142,7 @@ export default async function PaymentsPage() {
           </div>
         )}
 
-        {/* Payment history */}
+        {/* Payment records */}
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
           Payment Records
         </h2>
@@ -177,9 +151,9 @@ export default async function PaymentsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {payments.map(p => {
               const reg = p.registrations;
-              const typeLabel = p.payment_types?.label || '—';
+              const typeLabel   = p.payment_types?.label   || '—';
               const statusLabel = p.payment_statuses?.label || '—';
-              const isPending = statusLabel.toLowerCase() === 'pending';
+              const isPaid      = statusLabel.toLowerCase() === 'paid';
 
               return (
                 <div key={p.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem' }}>
@@ -189,17 +163,18 @@ export default async function PaymentsPage() {
                         <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {displayName(reg?.participants)}
                         </p>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '3px', border: `1px solid ${isPending ? 'var(--border)' : '#22c55e'}`, color: isPending ? 'var(--text-faint)' : '#22c55e' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '3px', border: `1px solid ${isPaid ? '#22c55e' : 'var(--border)'}`, color: isPaid ? '#22c55e' : 'var(--text-faint)' }}>
                           {statusLabel}
                         </span>
                         <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '3px', border: '1px solid var(--border)', color: 'var(--text-faint)' }}>
                           {typeLabel}
                         </span>
                       </div>
-                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {getProgramLabel(reg)}{getSeasonLabel(reg) ? ` · ${getSeasonLabel(reg)} Season` : ''}
-                        {reg?.registration_number ? ` · #${reg.registration_number}` : ''}
-                      </p>
+                      {reg?.registration_number && (
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          #{reg.registration_number}
+                        </p>
+                      )}
                       <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)', marginTop: '0.2rem' }}>
                         {fmtDateTime(p.paid_at || p.created_at)}
                       </p>
@@ -209,7 +184,7 @@ export default async function PaymentsPage() {
                         {fmt(p.amount)}
                       </p>
                       {p.stripe_payment_intent_id && (
-                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.65rem', color: 'var(--text-faint)', marginTop: '0.2rem', fontFeatureSettings: '"tnum"' }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.65rem', color: 'var(--text-faint)', marginTop: '0.2rem' }}>
                           {p.stripe_payment_intent_id.slice(-8)}
                         </p>
                       )}
