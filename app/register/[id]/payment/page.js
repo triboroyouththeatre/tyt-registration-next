@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -12,13 +12,11 @@ const FEE_RATE = 0.05;
 const REGISTRATION_STATUS_PENDING = '448779d0-8e45-47e1-b653-37d8fb16eb20';
 const PAYMENT_STATUS_PENDING = '92d4b30c-799e-43ba-83e1-f7989d95f612';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function fmt(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount) || 0);
 }
 
-// ─── Step Bar ─────────────────────────────────────────────────────────────────
+// ─── Step Bar ──────────────────────────────────────────────────────────────────
 
 function StepBar() {
   const steps = [
@@ -57,15 +55,15 @@ function StepBar() {
   );
 }
 
-// ─── Payment Form ──────────────────────────────────────────────────────────────
+// ─── Stripe Payment Form ───────────────────────────────────────────────────────
 
-function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAmount, totalCharged, stripeCustomerId, programData }) {
+function PaymentForm({ cartItems, programId, participantId, paymentAmount, totalCharged, stripeCustomerId, programData }) {
   const stripe = useStripe();
   const elements = useElements();
   const router = useRouter();
-
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const feeAmount = paymentAmount * FEE_RATE;
 
   async function saveRegistrations(stripePaymentIntentId) {
     const supabase = createClient();
@@ -73,7 +71,6 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
     const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
     const familyId = profile.family_id;
 
-    // 1. Create cart record
     const { data: cart, error: cartErr } = await supabase
       .from('carts')
       .insert({
@@ -88,14 +85,11 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
 
     const createdRegistrations = [];
 
-    // 2. One registration + health + agreements per cart item
     for (const item of cartItems) {
       const healthRaw     = sessionStorage.getItem(`health_${programId}_${item.participantId}`);
       const agreementsRaw = sessionStorage.getItem(`agreements_${programId}_${item.participantId}`);
       const health        = healthRaw     ? JSON.parse(healthRaw)     : null;
       const agreements    = agreementsRaw ? JSON.parse(agreementsRaw) : [];
-
-      // Per-participant payment share (split evenly)
       const perParticipantPaid = paymentAmount / cartItems.length;
       const perParticipantFee  = parseFloat(item.fee);
 
@@ -118,7 +112,6 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
         .single();
       if (regErr) throw new Error('Failed to create registration: ' + regErr.message);
 
-      // Health record
       if (health) {
         const { error: healthErr } = await supabase.from('health_records').insert({
           registration_id:           reg.id,
@@ -140,7 +133,6 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
         if (healthErr) throw new Error('Failed to create health record: ' + healthErr.message);
       }
 
-      // Agreements
       for (const agreement of agreements) {
         const { error: agreeErr } = await supabase.from('agreements').insert({
           registration_id:    reg.id,
@@ -163,7 +155,6 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
       });
     }
 
-    // 3. Payment record
     const { error: paymentErr } = await supabase.from('payments').insert({
       family_id:                familyId,
       stripe_payment_intent_id: stripePaymentIntentId,
@@ -173,25 +164,17 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
     });
     if (paymentErr) throw new Error('Failed to create payment: ' + paymentErr.message);
 
-    // 4. Create invoice for non-FA registrations only
-    const nonFARegistrations = createdRegistrations.filter(r => {
-      const balance = r.totalFee - r.amountPaid;
-      return !r.financialAid && balance > 0.01;
-    });
-
-    if (nonFARegistrations.length > 0 && stripeCustomerId) {
+    // Invoice for non-FA families with a remaining balance
+    const nonFARegs = createdRegistrations.filter(r => !r.financialAid && (r.totalFee - r.amountPaid) > 0.01);
+    if (nonFARegs.length > 0 && stripeCustomerId) {
       try {
         await fetch('/api/create-invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            stripeCustomerId,
-            registrations: nonFARegistrations,
-          }),
+          body: JSON.stringify({ stripeCustomerId, registrations: nonFARegs }),
         });
-      } catch (invoiceErr) {
-        // Invoice failure is non-fatal — registration is still created
-        console.error('[PaymentForm] Invoice creation failed:', invoiceErr);
+      } catch (err) {
+        console.error('[PaymentForm] Invoice creation failed:', err);
       }
     }
   }
@@ -199,7 +182,6 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
   async function handleSubmit(e) {
     e.preventDefault();
     if (!stripe || !elements) return;
-
     setProcessing(true);
     setError('');
 
@@ -218,18 +200,13 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
       try {
         await saveRegistrations(paymentIntent.id);
       } catch (dbErr) {
-        console.error('[PaymentForm] DB save error:', dbErr);
-        // Payment succeeded — still redirect even if DB write fails partially
-        // Webhook handler will reconcile
+        console.error('[PaymentForm] DB error after payment:', dbErr);
       }
-
-      // Clear sessionStorage
       cartItems.forEach(item => {
         sessionStorage.removeItem(`health_${programId}_${item.participantId}`);
         sessionStorage.removeItem(`agreements_${programId}_${item.participantId}`);
       });
       sessionStorage.removeItem(`cart_${programId}`);
-
       router.push(`/register/${programId}/confirmation?participant=${participantId}`);
     } else {
       setError('Payment was not completed. Please try again.');
@@ -240,11 +217,9 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
   return (
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error" style={{ marginBottom: '1rem' }}>{error}</div>}
-
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', marginBottom: '1.5rem' }}>
         <PaymentElement options={{ layout: 'tabs' }} />
       </div>
-
       <button
         type="submit"
         disabled={!stripe || !elements || processing}
@@ -253,7 +228,6 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, feeAm
       >
         {processing ? 'Processing...' : `Pay ${fmt(totalCharged)} Now`}
       </button>
-
       <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)', textAlign: 'center', marginTop: '1rem' }}>
         🔒 Payments are secured by Stripe. Your card details are never stored on our servers.
       </p>
@@ -269,24 +243,25 @@ export default function PaymentPage() {
   const programId = params?.id;
   const participantId = searchParams?.get('participant');
 
-  const [status, setStatus] = useState('loading');
+  const [status, setStatus] = useState('amount'); // 'amount' | 'checkout' | 'error'
   const [error, setError] = useState('');
-
-  // Cart data
   const [cartItems, setCartItems] = useState([]);
   const [programData, setProgramData] = useState(null);
   const [minPayment, setMinPayment] = useState(0);
   const [maxPayment, setMaxPayment] = useState(0);
-  const [paymentAmount, setPaymentAmount] = useState(0);
+
+  // Amount entry state
+  const [inputValue, setInputValue] = useState('');
+  const [amountError, setAmountError] = useState('');
+
+  // Confirmed amounts — only set when family clicks "Continue to Payment"
+  const [confirmedAmount, setConfirmedAmount] = useState(0);
+  const [confirmedFee, setConfirmedFee] = useState(0);
+  const [confirmedTotal, setConfirmedTotal] = useState(0);
 
   // Stripe
   const [clientSecret, setClientSecret] = useState('');
   const [stripeCustomerId, setStripeCustomerId] = useState('');
-  const [intentCreated, setIntentCreated] = useState(false);
-
-  // Derived fee values
-  const feeAmount    = paymentAmount * FEE_RATE;
-  const totalCharged = paymentAmount + feeAmount;
 
   useEffect(() => {
     if (!programId || programId === 'undefined') {
@@ -309,16 +284,14 @@ export default function PaymentPage() {
       return;
     }
 
-    // Calculate min (total deposits) and max (total fees)
-    const totalDeposit = items.reduce((sum, item) => sum + (parseFloat(item.deposit) || 0), 0);
-    const totalFee     = items.reduce((sum, item) => sum + (parseFloat(item.fee)     || 0), 0);
+    const totalDeposit = items.reduce((sum, i) => sum + (parseFloat(i.deposit) || 0), 0);
+    const totalFee     = items.reduce((sum, i) => sum + (parseFloat(i.fee)     || 0), 0);
 
     setCartItems(items);
     setMinPayment(totalDeposit);
     setMaxPayment(totalFee);
-    setPaymentAmount(totalDeposit); // default to deposit
+    setInputValue(totalDeposit.toFixed(2));
 
-    // Fetch program data for balance_due_date
     async function loadProgram() {
       const supabase = createClient();
       const { data: prog } = await supabase
@@ -327,44 +300,50 @@ export default function PaymentPage() {
         .eq('id', programId)
         .single();
       setProgramData(prog);
-      setStatus('ready');
     }
-
     loadProgram();
   }, [programId]);
 
-  // Create/recreate payment intent when paymentAmount changes (debounced)
-  useEffect(() => {
-    if (status !== 'ready' || paymentAmount <= 0) return;
+  // Live fee preview from input (display only — does NOT create a payment intent)
+  const parsedInput = parseFloat(inputValue) || 0;
+  const previewFee   = parsedInput * FEE_RATE;
+  const previewTotal = parsedInput + previewFee;
 
-    const timer = setTimeout(async () => {
-      try {
-        setIntentCreated(false);
-        const res = await fetch('/api/create-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cartItems, programId, paymentAmount }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to initialize payment');
-        setClientSecret(data.clientSecret);
-        setStripeCustomerId(data.stripeCustomerId);
-        setIntentCreated(true);
-      } catch (err) {
-        console.error('[PaymentPage] createIntent error:', err);
-        setError(err.message);
-      }
-    }, 600); // debounce 600ms
+  async function handleConfirmAmount() {
+    setAmountError('');
+    const amount = parseFloat(inputValue);
 
-    return () => clearTimeout(timer);
-  }, [paymentAmount, status]);
+    if (isNaN(amount) || amount < minPayment) {
+      setAmountError(`Minimum payment is ${fmt(minPayment)}.`);
+      return;
+    }
+    if (amount > maxPayment) {
+      setAmountError(`Maximum payment is ${fmt(maxPayment)} (full balance).`);
+      return;
+    }
 
-  function handleAmountChange(val) {
-    const num = parseFloat(val);
-    if (isNaN(num)) return;
-    if (num < minPayment) setPaymentAmount(minPayment);
-    else if (num > maxPayment) setPaymentAmount(maxPayment);
-    else setPaymentAmount(num);
+    const fee   = amount * FEE_RATE;
+    const total = amount + fee;
+
+    setConfirmedAmount(amount);
+    setConfirmedFee(fee);
+    setConfirmedTotal(total);
+
+    // Only NOW do we create the payment intent
+    try {
+      const res = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cartItems, programId, paymentAmount: amount }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to initialize payment');
+      setClientSecret(data.clientSecret);
+      setStripeCustomerId(data.stripeCustomerId);
+      setStatus('checkout');
+    } catch (err) {
+      setAmountError(err.message);
+    }
   }
 
   const stripeAppearance = {
@@ -379,10 +358,12 @@ export default function PaymentPage() {
     },
   };
 
+  const balanceDueDateStr = programData?.balance_due_date
+    ? new Date(programData.balance_due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : null;
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
-
-      {/* Nav */}
       <nav style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px', position: 'sticky', top: 0, zIndex: 100 }}>
         <a href="/register" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={48} height={48} style={{ objectFit: 'contain' }} />
@@ -397,12 +378,7 @@ export default function PaymentPage() {
 
       <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
 
-        {status === 'loading' && (
-          <div style={{ textAlign: 'center', padding: '4rem', fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)' }}>
-            Preparing your payment...
-          </div>
-        )}
-
+        {/* Error state */}
         {status === 'error' && (
           <div>
             <div className="tyt-error" style={{ marginBottom: '1rem' }}>{error}</div>
@@ -410,145 +386,180 @@ export default function PaymentPage() {
           </div>
         )}
 
-        {status === 'ready' && (
+        {/* Step 1 — Amount entry */}
+        {status === 'amount' && (
           <>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
               Payment
             </h2>
             <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-              A minimum deposit is required today. You may pay more to reduce your balance.
+              Enter the amount you'd like to pay today. A minimum deposit is required.
             </p>
 
-            {/* Order Summary */}
+            {/* Registration summary */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1.25rem' }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '0.75rem' }}>
+                Registration Summary
+              </p>
+              {cartItems.map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < cartItems.length - 1 ? '0.5rem' : 0, marginBottom: i < cartItems.length - 1 ? '0.5rem' : 0, borderBottom: i < cartItems.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <div>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-primary)' }}>{item.participantName}</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.programLabel}</p>
+                  </div>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-muted)' }}>{fmt(item.fee)} + fees</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Amount input */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1.25rem' }}>
+              <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', display: 'block', marginBottom: '0.5rem' }}>
+                Payment Amount
+              </label>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.875rem' }}>
+                Minimum: <strong style={{ color: 'var(--text-primary)' }}>{fmt(minPayment)}</strong> &nbsp;·&nbsp; Maximum: <strong style={{ color: 'var(--text-primary)' }}>{fmt(maxPayment)}</strong>
+              </p>
+
+              {/* Quick select buttons */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Min Deposit', amount: minPayment },
+                  ...(Math.round(maxPayment * 0.5) > minPayment ? [{ label: 'Half Balance', amount: Math.round(maxPayment * 0.5) }] : []),
+                  { label: 'Pay in Full', amount: maxPayment },
+                ].map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => setInputValue(opt.amount.toFixed(2))}
+                    style={{
+                      fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600,
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                      border: `1px solid ${parseFloat(inputValue) === opt.amount ? 'var(--red)' : 'var(--border)'}`,
+                      background: parseFloat(inputValue) === opt.amount ? 'var(--red)' : 'transparent',
+                      color: parseFloat(inputValue) === opt.amount ? '#fff' : 'var(--text-muted)',
+                    }}
+                  >
+                    {opt.label} · {fmt(opt.amount)}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                <span style={{ fontFamily: 'var(--font-body)', color: 'var(--text-muted)', fontSize: '1rem' }}>$</span>
+                <input
+                  type="number"
+                  min={minPayment}
+                  max={maxPayment}
+                  step="0.01"
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  className="tyt-input"
+                  style={{ maxWidth: '160px' }}
+                />
+              </div>
+
+              {amountError && (
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--red)', marginBottom: '0.75rem' }}>{amountError}</p>
+              )}
+
+              {/* Live fee preview */}
+              {parsedInput > 0 && (
+                <div style={{ background: 'var(--bg-hover)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Payment</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{fmt(parsedInput)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Processing fee (5%)</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{fmt(previewFee)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Charged</span>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold)' }}>{fmt(previewTotal)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Balance notice */}
+              {parsedInput > 0 && parsedInput < maxPayment && (
+                <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.875rem', background: 'var(--bg-dark)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Remaining balance of <strong style={{ color: 'var(--text-primary)' }}>{fmt(maxPayment - parsedInput)}</strong> + 5% processing fee will be invoiced
+                    {balanceDueDateStr ? ` and due by ${balanceDueDateStr}` : ''}.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleConfirmAmount}
+              className="tyt-btn tyt-btn-primary tyt-btn-full"
+            >
+              Continue to Payment →
+            </button>
+          </>
+        )}
+
+        {/* Step 2 — Stripe card form */}
+        {status === 'checkout' && clientSecret && (
+          <>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+              Enter Payment Details
+            </h2>
+            <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+              Review your order summary before completing payment.
+            </p>
+
+            {/* Order summary */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1.5rem' }}>
               <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '0.75rem' }}>
                 Order Summary
               </p>
-
               {cartItems.map((item, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: i < cartItems.length - 1 ? '0.5rem' : 0, marginBottom: i < cartItems.length - 1 ? '0.5rem' : 0, borderBottom: i < cartItems.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < cartItems.length - 1 ? '0.5rem' : 0, marginBottom: i < cartItems.length - 1 ? '0.5rem' : 0, borderBottom: i < cartItems.length - 1 ? '1px solid var(--border)' : 'none' }}>
                   <div>
                     <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-primary)' }}>{item.participantName}</p>
-                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.programLabel} — Total fee {fmt(item.fee)} + fees</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.programLabel} — Payment</p>
                   </div>
                 </div>
               ))}
-
-              <div style={{ borderTop: '1px solid var(--border)', marginTop: '1rem', paddingTop: '1rem' }}>
-
-                {/* Payment amount selector */}
-                <div style={{ marginBottom: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                    <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                      Payment Amount
-                    </label>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)' }}>
-                      Min {fmt(minPayment)} · Max {fmt(maxPayment)}
-                    </span>
-                  </div>
-
-                  {/* Slider */}
-                  <input
-                    type="range"
-                    min={minPayment}
-                    max={maxPayment}
-                    step={1}
-                    value={paymentAmount}
-                    onChange={e => handleAmountChange(e.target.value)}
-                    style={{ width: '100%', accentColor: 'var(--red)', marginBottom: '0.5rem', cursor: 'pointer' }}
-                  />
-
-                  {/* Manual input */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontFamily: 'var(--font-body)', color: 'var(--text-muted)', fontSize: '0.9rem' }}>$</span>
-                    <input
-                      type="number"
-                      min={minPayment}
-                      max={maxPayment}
-                      step={1}
-                      value={paymentAmount}
-                      onChange={e => handleAmountChange(e.target.value)}
-                      className="tyt-input"
-                      style={{ maxWidth: '140px' }}
-                    />
-                  </div>
-
-                  {/* Quick select buttons */}
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                    {[minPayment, Math.round(maxPayment * 0.5), maxPayment].map((amt, i) => {
-                      const labels = ['Min Deposit', 'Half', 'Pay in Full'];
-                      if (amt <= 0) return null;
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setPaymentAmount(amt)}
-                          style={{
-                            fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600,
-                            letterSpacing: '0.08em', textTransform: 'uppercase',
-                            padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                            border: `1px solid ${paymentAmount === amt ? 'var(--red)' : 'var(--border)'}`,
-                            background: paymentAmount === amt ? 'var(--red)' : 'transparent',
-                            color: paymentAmount === amt ? '#fff' : 'var(--text-muted)',
-                          }}
-                        >
-                          {labels[i]} · {fmt(amt)}
-                        </button>
-                      );
-                    })}
-                  </div>
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.75rem', paddingTop: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Payment</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{fmt(confirmedAmount)}</span>
                 </div>
-
-                {/* Fee breakdown */}
-                <div style={{ background: 'var(--bg-hover)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Payment</span>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{fmt(paymentAmount)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Processing fee (5%)</span>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{fmt(feeAmount)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Charged Today</span>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold)' }}>{fmt(totalCharged)}</span>
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Processing fee (5%)</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{fmt(confirmedFee)}</span>
                 </div>
-
-                {/* Balance notice */}
-                {paymentAmount < maxPayment && (
-                  <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.875rem', background: 'var(--bg-dark)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Remaining balance of <strong style={{ color: 'var(--text-primary)' }}>{fmt(maxPayment - paymentAmount)}</strong> + 5% fee will be invoiced
-                      {programData?.balance_due_date ? ` and due by ${new Date(programData.balance_due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}.
-                    </p>
-                  </div>
-                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Charged</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold)' }}>{fmt(confirmedTotal)}</span>
+                </div>
               </div>
             </div>
 
-            {/* Stripe Elements — only render when intent is ready */}
-            {intentCreated && clientSecret ? (
-              <Elements
-                stripe={stripePromise}
-                options={{ clientSecret, appearance: stripeAppearance }}
-              >
-                <PaymentForm
-                  cartItems={cartItems}
-                  programId={programId}
-                  participantId={participantId}
-                  paymentAmount={paymentAmount}
-                  feeAmount={feeAmount}
-                  totalCharged={totalCharged}
-                  stripeCustomerId={stripeCustomerId}
-                  programData={programData}
-                />
-              </Elements>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '2rem', fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)' }}>
-                Updating payment details...
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => setStatus('amount')}
+              style={{ background: 'none', border: 'none', fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', cursor: 'pointer', padding: 0, marginBottom: '1rem', textDecoration: 'underline' }}
+            >
+              ← Change Amount
+            </button>
+
+            <Elements stripe={stripePromise} options={{ clientSecret, appearance: stripeAppearance }}>
+              <PaymentForm
+                cartItems={cartItems}
+                programId={programId}
+                participantId={participantId}
+                paymentAmount={confirmedAmount}
+                totalCharged={confirmedTotal}
+                stripeCustomerId={stripeCustomerId}
+                programData={programData}
+              />
+            </Elements>
           </>
         )}
       </main>
