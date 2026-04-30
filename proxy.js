@@ -18,6 +18,7 @@ const ADMIN_ROUTES = ['/admin', '/backstage'];
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
+  // Allow public routes through without any checks
   const isPublic = PUBLIC_ROUTES.some(
     route => pathname === route || pathname.startsWith(route + '/')
   );
@@ -46,6 +47,7 @@ export async function proxy(request) {
     }
   );
 
+  // Check authentication
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
@@ -54,17 +56,33 @@ export async function proxy(request) {
     return NextResponse.redirect(loginUrl);
   }
 
-const isAdminRoute = ADMIN_ROUTES.some(route => pathname.startsWith(route));
-if (isAdminRoute) {
+  // Fetch profile once — used for both role check and onboarding check
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, families(is_onboarding_complete)')
     .eq('id', user.id)
     .single();
-  if (!profile || profile.role !== 'admin') {
+
+  const isAdmin = profile?.role === 'admin';
+
+  // Admin users: redirect to /backstage if trying to access family portal
+  if (isAdmin && !pathname.startsWith('/backstage') && !pathname.startsWith('/admin')) {
+    return NextResponse.redirect(new URL('/backstage', request.url));
+  }
+
+  // Admin route protection: non-admins cannot access /backstage or /admin
+  const isAdminRoute = ADMIN_ROUTES.some(route => pathname.startsWith(route));
+  if (isAdminRoute && !isAdmin) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
-}
+
+  // Family users: enforce onboarding completion
+  if (!isAdmin) {
+    const onboardingComplete = profile?.families?.is_onboarding_complete;
+    if (!onboardingComplete && pathname !== '/onboarding') {
+      return NextResponse.redirect(new URL('/onboarding', request.url));
+    }
+  }
 
   return response;
 }
