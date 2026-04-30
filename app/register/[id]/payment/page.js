@@ -112,6 +112,7 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
           registration_id: reg.id, family_id: familyId,
           policy_document_id: agreement.policy_document_id,
           agreed_by: agreement.agreed_by, agreed_at: agreement.agreed_at,
+          ip_address: 'n/a',
         });
         if (agreeErr) throw new Error('Agreement: ' + agreeErr.message);
       }
