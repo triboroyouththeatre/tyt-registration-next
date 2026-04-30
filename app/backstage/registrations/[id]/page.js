@@ -81,6 +81,7 @@ export default function RegistrationDetailPage() {
   const [program, setProgram]         = useState(null);
   const [gradeLevels, setGradeLevels] = useState([]);
   const [regStatuses, setRegStatuses] = useState([]);
+  const [contacts, setContacts] = useState([]);
 
   // Edit states
   const [editingParticipant, setEditingParticipant] = useState(false);
@@ -158,6 +159,22 @@ export default function RegistrationDetailPage() {
             .single();
           setProgram(prog);
         }
+      }
+
+      // Contacts for the family
+      const { data: familyReg } = await supabase
+        .from('registrations')
+        .select('family_id')
+        .eq('id', regId)
+        .single();
+
+      if (familyReg?.family_id) {
+        const { data: ct } = await supabase
+          .from('contacts')
+          .select('priority, first_name, last_name, phone, email, relationships(label)')
+          .eq('family_id', familyReg.family_id)
+          .order('priority');
+        setContacts(ct || []);
       }
 
       // Grade levels + reg statuses
@@ -380,6 +397,47 @@ export default function RegistrationDetailPage() {
               )}
             </div>
           </div>
+
+        {/* Contacts */}
+        <div style={card}>
+          <SectionHeader title="Contacts" />
+
+          {/* Guardians */}
+          {contacts.filter(c => c.priority <= 2).map(c => (
+            <div key={c.priority} style={{ marginBottom: '0.875rem', paddingBottom: '0.875rem', borderBottom: '1px solid #f3f4f6' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.2rem' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: 600, color: '#111', margin: 0 }}>
+                  {c.first_name} {c.last_name}
+                </p>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#e0bf5c', background: '#1a1200', border: '1px solid #e0bf5c30', borderRadius: '3px', padding: '0.15rem 0.4rem' }}>
+                  {c.priority === 1 ? 'Primary Guardian' : 'Secondary Guardian'}
+                </span>
+              </div>
+              {c.relationships?.label && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: '#6b7280', margin: '0 0 0.25rem 0' }}>{c.relationships.label}</p>}
+              {c.phone && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: 0 }}>📞 {c.phone}</p>}
+              {c.email && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: 0 }}>✉ {c.email}</p>}
+            </div>
+          ))}
+
+          {/* Emergency contacts */}
+          {contacts.filter(c => c.priority >= 3).length > 0 && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9ca3af', margin: '0 0 0.75rem 0' }}>Emergency Contacts</p>
+              {contacts.filter(c => c.priority >= 3).map(c => (
+                <div key={c.priority} style={{ marginBottom: '0.75rem' }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: 600, color: '#111', margin: '0 0 0.2rem 0' }}>
+                    {c.first_name} {c.last_name}
+                  </p>
+                  {c.phone && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: 0 }}>📞 {c.phone}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {contacts.length === 0 && (
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#9ca3af', fontStyle: 'italic' }}>No contacts on file.</p>
+          )}
+        </div>
 
         </div>
 
