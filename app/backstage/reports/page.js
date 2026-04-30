@@ -73,11 +73,6 @@ export default function ReportsPage() {
         participants(first_name, last_name, nickname, yog, date_of_birth, genders(label)),
         registration_statuses(label),
         payments(payment_statuses(label)),
-        health_records!health_records_registration_id_fkey(
-          academic_flag, academic_notes, behavioral_flag, behavioral_notes,
-          allergies_flag, allergies_notes, epipen, asthma,
-          concussion_flag, concussion_date, general_comments
-        ),
         carts(program_id, programs(label))
       `)
       .order('registration_number');
@@ -95,6 +90,16 @@ export default function ReportsPage() {
       .in('priority', [1, 2, 3, 4])
       .order('priority');
 
+// Fetch health records separately by registration ID
+    const regIds = regs.map(r => r.id).filter(Boolean);
+    const { data: allHealth } = await supabase
+      .from('health_records')
+      .select('registration_id, academic_flag, academic_notes, behavioral_flag, behavioral_notes, allergies_flag, allergies_notes, epipen, asthma, concussion_flag, concussion_date, general_comments')
+      .in('registration_id', regIds);
+
+    const healthByReg = {};
+    (allHealth || []).forEach(h => { healthByReg[h.registration_id] = h; });
+
     // Build contact map: family_id → { 1: contact, 2: contact, ... }
     const contactsByFamily = {};
     (allContacts || []).forEach(c => {
@@ -105,7 +110,7 @@ export default function ReportsPage() {
     // Flatten registrations into report rows
     let flat = regs.map(r => {
       const p  = r.participants;
-      const h  = r.health_records?.[0] || {};
+      const h  = healthByReg[r.id] || {};
       const ct = contactsByFamily[r.family_id] || {};
 
       return {
