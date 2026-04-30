@@ -275,8 +275,9 @@ function Step2({ onComplete, onBack, familyId }) {
     load();
   }, [familyId]);
 
-  useEffect(() => {
+useEffect(() => {
     if (!form.date_of_birth || !gradeLevels.length) return;
+    if (yogConfirmed) return;
     const dob = new Date(form.date_of_birth);
     const today = new Date();
     const sYS = today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1;
@@ -290,7 +291,6 @@ function Step2({ onComplete, onBack, familyId }) {
       setForm(f => ({ ...f, yog }));
       const match = gradeLevels.find(g => g.yog === yog);
       setYogLabel(match?.label || `Class of ${yog}`);
-      setYogConfirmed(false);
     }
   }, [form.date_of_birth, gradeLevels]);
 
