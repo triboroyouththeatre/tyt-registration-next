@@ -52,98 +52,31 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
-  async function saveRegistrations(stripePaymentIntentId) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
-    const familyId = profile.family_id;
-    const isFullPayment = Math.abs(paymentAmount - maxPayment) < 0.01;
-    const paymentTypeId = isFullPayment ? PAYMENT_TYPE_FULL : PAYMENT_TYPE_DEPOSIT;
+async function saveRegistrations(stripePaymentIntentId) {
+  const cartItemsWithData = cartItems.map(item => ({
+    ...item,
+    health:     JSON.parse(sessionStorage.getItem(`health_${programId}_${item.participantId}`) || 'null'),
+    agreements: JSON.parse(sessionStorage.getItem(`agreements_${programId}_${item.participantId}`) || '[]'),
+  }));
 
-    const { data: cart, error: cartErr } = await supabase.from('carts').insert({
-      family_id: familyId, stripe_payment_intent_id: stripePaymentIntentId,
-      total_deposit: paymentAmount, status: 'paid',
-    }).select('id').single();
-    if (cartErr) throw new Error('Cart: ' + cartErr.message);
+  const res = await fetch('/api/save-registration', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cartItems:             cartItemsWithData,
+      programId,
+      stripePaymentIntentId,
+      paymentAmount,
+      totalCharged,
+      maxPayment,
+      programData,
+      stripeCustomerId,
+    }),
+  });
 
-    const createdRegistrations = [];
-
-    for (const item of cartItems) {
-      const healthRaw = sessionStorage.getItem(`health_${programId}_${item.participantId}`);
-      const agreementsRaw = sessionStorage.getItem(`agreements_${programId}_${item.participantId}`);
-      const health = healthRaw ? JSON.parse(healthRaw) : null;
-      const agreements = agreementsRaw ? JSON.parse(agreementsRaw) : [];
-      const perParticipantPaid = paymentAmount / cartItems.length;
-      const perParticipantFee = parseFloat(item.fee);
-      const awardLevelId = health?.award_level_id || AWARD_LEVEL_NO_AWARD;
-
-      const { data: regNumData, error: regNumErr } = await supabase.rpc('generate_registration_number');
-      if (regNumErr) throw new Error('Reg number: ' + regNumErr.message);
-
-      const { data: reg, error: regErr } = await supabase.from('registrations').insert({
-        family_id: familyId, participant_id: item.participantId, cart_id: cart.id,
-        status_id: REGISTRATION_STATUS_PENDING, award_level_id: awardLevelId,
-        registration_number: regNumData, sig_parent: agreements[0]?.agreed_by || '',
-        stripe_payment_intent_id: stripePaymentIntentId,
-        amount_paid: perParticipantPaid, total_fee: perParticipantFee,
-        is_financial_aid_requested: item.financialAid || false,
-        registered_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }).select('id').single();
-      if (regErr) throw new Error('Registration: ' + regErr.message);
-
-      if (health) {
-        const { error: healthErr } = await supabase.from('health_records').insert({
-          registration_id: reg.id,
-          academic_flag: health.academic_flag || false, academic_notes: health.academic_notes || '',
-          behavioral_flag: health.behavioral_flag || false, behavioral_notes: health.behavioral_notes || '',
-          allergies_flag: health.allergies_flag || false, allergies_notes: health.allergies_notes || '',
-          epipen: health.epipen || false, asthma: health.asthma || false,
-          concussion_flag: health.concussion_flag || false, concussion_date: health.concussion_date || null,
-          concussion_cleared: health.concussion_cleared || false,
-          concussion_symptoms: health.concussion_symptoms || false,
-          concussion_symptoms_notes: health.concussion_symptoms_notes || '',
-          general_comments: health.general_comments || '',
-        });
-        if (healthErr) throw new Error('Health: ' + healthErr.message);
-      }
-
-      for (const agreement of agreements) {
-        const { error: agreeErr } = await supabase.from('agreements').insert({
-          registration_id: reg.id, family_id: familyId,
-          policy_document_id: agreement.policy_document_id,
-          agreed_by: agreement.agreed_by, agreed_at: agreement.agreed_at,
-          ip_address: 'n/a',
-        });
-        if (agreeErr) throw new Error('Agreement: ' + agreeErr.message);
-      }
-
-      const { error: paymentErr } = await supabase.from('payments').insert({
-        registration_id: reg.id, family_id: familyId,
-        stripe_payment_intent_id: stripePaymentIntentId,
-        amount: totalCharged / cartItems.length,
-        status_id: PAYMENT_STATUS_PENDING, type_id: paymentTypeId,
-        paid_at: new Date().toISOString(),
-      });
-      if (paymentErr) throw new Error('Payment: ' + paymentErr.message);
-
-      createdRegistrations.push({
-        registrationId: reg.id, participantName: item.participantName,
-        programLabel: item.programLabel, totalFee: perParticipantFee,
-        amountPaid: perParticipantPaid, financialAid: item.financialAid || false,
-        balanceDueDate: programData?.balance_due_date || null,
-      });
-    }
-
-    const nonFARegs = createdRegistrations.filter(r => !r.financialAid && (r.totalFee - r.amountPaid) > 0.01);
-    if (nonFARegs.length > 0 && stripeCustomerId) {
-      try {
-        await fetch('/api/create-invoice', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stripeCustomerId, registrations: nonFARegs }),
-        });
-      } catch (err) { console.error('[PaymentForm] Invoice failed:', err); }
-    }
-  }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to save registration');
+}
 
   async function handleSubmit(e) {
     e.preventDefault();
