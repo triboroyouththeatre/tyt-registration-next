@@ -13,7 +13,7 @@ const PUBLIC_ROUTES = [
   '/onboarding',
 ];
 
-const ADMIN_ROUTES = ['/admin'];
+const ADMIN_ROUTES = ['/admin', '/backstage'];
 
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
@@ -54,10 +54,17 @@ export async function proxy(request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const isAdmin = ADMIN_ROUTES.some(route => pathname.startsWith(route));
-  if (isAdmin && user.app_metadata?.role !== 'admin') {
+const isAdminRoute = ADMIN_ROUTES.some(route => pathname.startsWith(route));
+if (isAdminRoute) {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  if (!profile || profile.role !== 'admin') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
+}
 
   return response;
 }
