@@ -234,7 +234,7 @@ export default function ReviewPage() {
     }
     setSubmitting(true);
     saveToCart();
-    router.push(`/register/${programId}/payment`);
+    router.push(`/register/${programId}/payment?participant=${participantId}`);
   }
 
   const backHref = programId && participantId && programId !== 'undefined'

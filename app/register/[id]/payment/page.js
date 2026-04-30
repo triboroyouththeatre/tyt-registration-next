@@ -161,7 +161,7 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
         sessionStorage.removeItem(`agreements_${programId}_${item.participantId}`);
       });
       sessionStorage.removeItem(`cart_${programId}`);
-      router.push(`/register/${programId}/confirmation?participant=${participantId}`);
+      router.push(`/register/${programId}/confirmation?participant=${cartItems[0]?.participantId}`);
     } else {
       setError('Payment was not completed. Please try again.');
       setProcessing(false);
