@@ -20,7 +20,6 @@ export default async function EditProgramPage({ params }) {
 
   if (!program) redirect('/backstage/programs');
 
-  // Find the season_id for this program via session
   const session = sessions?.find(s => s.id === program.session_id);
   const programWithSeason = { ...program, season_id: session?.season_id || '' };
 
