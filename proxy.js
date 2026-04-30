@@ -56,10 +56,10 @@ export async function proxy(request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Fetch profile once — used for both role check and onboarding check
+  // Fetch profile
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, families(is_onboarding_complete)')
+    .select('role, family_id')
     .eq('id', user.id)
     .single();
 
@@ -76,10 +76,15 @@ export async function proxy(request) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // Family users: enforce onboarding completion
-  if (!isAdmin) {
-    const onboardingComplete = profile?.families?.is_onboarding_complete;
-    if (!onboardingComplete && pathname !== '/onboarding') {
+  // Family users: check onboarding completion separately
+  if (!isAdmin && profile?.family_id) {
+    const { data: family } = await supabase
+      .from('families')
+      .select('is_onboarding_complete')
+      .eq('id', profile.family_id)
+      .single();
+
+    if (!family?.is_onboarding_complete && pathname !== '/onboarding') {
       return NextResponse.redirect(new URL('/onboarding', request.url));
     }
   }
