@@ -27,6 +27,10 @@ export default async function BackstageLayout({ children }) {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'var(--font-body)' }}>
+      <style>{`
+        .bs-nav-tab:hover { color: #ffffff !important; border-bottom-color: #e0bf5c !important; }
+        .bs-nav-tab { border-bottom: 3px solid transparent; margin-bottom: -3px; transition: color 0.15s, border-color 0.15s; }
+      `}</style>
 
       {/* Top header */}
       <header style={{
@@ -117,24 +121,14 @@ function NavTab({ label, href }) {
   return (
     <Link
       href={href}
+      className="bs-nav-tab"
       style={{
         fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700,
         letterSpacing: '0.08em', textTransform: 'uppercase',
         color: '#d1d5db', textDecoration: 'none',
         padding: '0 1rem',
         display: 'flex', alignItems: 'center',
-        borderBottom: '3px solid transparent',
-        marginBottom: '-3px',
         whiteSpace: 'nowrap',
-        transition: 'color 0.15s, border-color 0.15s',
-      }}
-      onMouseOver={e => {
-        e.currentTarget.style.color = '#ffffff';
-        e.currentTarget.style.borderBottomColor = '#e0bf5c';
-      }}
-      onMouseOut={e => {
-        e.currentTarget.style.color = '#d1d5db';
-        e.currentTarget.style.borderBottomColor = 'transparent';
       }}
     >
       {label}
