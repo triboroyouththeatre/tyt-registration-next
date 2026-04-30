@@ -136,6 +136,102 @@ export default function ReportsPage() {
     const supabase = supabaseClient || createClient();
     setLoading(true);
 
+    const { data: regs } = await supabase
+      .from('registrations')
+      .select(`
+        id, registration_number, amount_paid, total_fee,
+        is_financial_aid_requested, family_id, cart_id,
+        participants(first_name, last_name, nickname, yog, date_of_birth, genders(label)),
+        registration_statuses(label),
+        payments(payment_statuses(label)),
+        health_records(
+          academic_flag, academic_notes, behavioral_flag, behavioral_notes,
+          allergies_flag, allergies_notes, epipen, asthma,
+          concussion_flag, concussion_date, general_comments
+        ),
+        carts(program_id, programs(label))
+      `)
+      .order('registration_number');
+
+    if (!regs?.length) { setData([]); setLoading(false); return; }
+
+    // Get unique family IDs
+    const familyIds = [...new Set(regs.map(r => r.family_id).filter(Boolean))];
+
+    // Fetch contacts for all families
+    const { data: allContacts } = await supabase
+      .from('contacts')
+      .select('family_id, priority, first_name, last_name, phone, email')
+      .in('family_id', familyIds)
+      .in('priority', [1, 2, 3, 4])
+      .order('priority');
+
+    // Build contact map by family_id → priority
+    const contactsByFamily = {};
+    (allContacts || []).forEach(c => {
+      if (!contactsByFamily[c.family_id]) contactsByFamily[c.family_id] = {};
+      contactsByFamily[c.family_id][c.priority] = c;
+    });
+
+    // Flatten registrations
+    let flat = regs.map(r => {
+      const p  = r.participants;
+      const h  = r.health_records?.[0] || {};
+      const ct = contactsByFamily[r.family_id] || {};
+
+      return {
+        _program_id:       r.carts?.program_id || '',
+        _family_id:        r.family_id,
+        first_name:        p?.first_name,
+        last_name:         p?.last_name,
+        nickname:          p?.nickname,
+        yog:               p?.yog,
+        date_of_birth:     p?.date_of_birth,
+        gender:            p?.genders?.label,
+        guardian1_first:   ct[1]?.first_name,
+        guardian1_last:    ct[1]?.last_name,
+        guardian1_phone:   ct[1]?.phone,
+        guardian1_email:   ct[1]?.email,
+        guardian2_first:   ct[2]?.first_name,
+        guardian2_last:    ct[2]?.last_name,
+        guardian2_phone:   ct[2]?.phone,
+        guardian2_email:   ct[2]?.email,
+        ec1_first:         ct[3]?.first_name,
+        ec1_last:          ct[3]?.last_name,
+        ec1_phone:         ct[3]?.phone,
+        ec2_first:         ct[4]?.first_name,
+        ec2_last:          ct[4]?.last_name,
+        ec2_phone:         ct[4]?.phone,
+        registration_number: r.registration_number,
+        amount_paid:       r.amount_paid,
+        total_fee:         r.total_fee,
+        is_financial_aid_requested: r.is_financial_aid_requested,
+        reg_status:        r.registration_statuses?.label,
+        pay_status:        r.payments?.[0]?.payment_statuses?.label,
+        program_label:     r.carts?.programs?.label || '',
+        academic_flag:     h.academic_flag,
+        academic_notes:    h.academic_notes,
+        behavioral_flag:   h.behavioral_flag,
+        behavioral_notes:  h.behavioral_notes,
+        allergies_flag:    h.allergies_flag,
+        allergies_notes:   h.allergies_notes,
+        epipen:            h.epipen,
+        asthma:            h.asthma,
+        concussion_flag:   h.concussion_flag,
+        concussion_date:   h.concussion_date,
+        general_comments:  h.general_comments,
+      };
+    });
+
+    // Apply program filter
+    if (progId) flat = flat.filter(r => r._program_id === progId);
+
+    setData(flat);
+    setLoading(false);
+  }
+    const supabase = supabaseClient || createClient();
+    setLoading(true);
+
     let query = supabase
       .from('registrations')
       .select(`
