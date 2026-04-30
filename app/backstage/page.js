@@ -56,19 +56,16 @@ export default async function BackstageDashboard() {
     .select('yog, label, seasons!inner(is_active)')
     .eq('seasons.is_active', true);
 
-  // Carts to link registrations to programs
+  // Carts with program_id for enrollment counting
   const { data: carts } = await supabase
     .from('carts')
-    .select('id, programs:programs!inner(id, label, sessions!inner(seasons!inner(is_active)))')
-    .eq('programs.sessions.seasons.is_active', true);
-
-  // ── Derived data ───────────────────────────────────────────────────────────
+    .select('id, program_id');
 
   // Build cart → program map
   const cartProgramMap = {};
   (carts || []).forEach(c => {
-    if (c.id && c.programs?.id) {
-      cartProgramMap[c.id] = c.programs.id;
+    if (c.id && c.program_id) {
+      cartProgramMap[c.id] = c.program_id;
     }
   });
 

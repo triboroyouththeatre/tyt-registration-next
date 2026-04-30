@@ -43,6 +43,7 @@ export async function POST(request) {
       .from('carts')
       .insert({
         family_id: familyId,
+        program_id: programId,
         stripe_payment_intent_id: stripePaymentIntentId,
         total_deposit: paymentAmount,
         status: 'paid',
