@@ -73,7 +73,7 @@ export default function ReportsPage() {
         participants(first_name, last_name, nickname, yog, date_of_birth, genders(label)),
         registration_statuses(label),
         payments(payment_statuses(label)),
-        health_records(
+        health_records!health_records_registration_id_fkey(
           academic_flag, academic_notes, behavioral_flag, behavioral_notes,
           allergies_flag, allergies_notes, epipen, asthma,
           concussion_flag, concussion_date, general_comments
@@ -194,7 +194,7 @@ export default function ReportsPage() {
     },
     contact: {
       cols: ['Participant', 'Guardian 1', 'G1 Phone', 'G1 Email', 'Guardian 2', 'G2 Phone', 'EC1', 'EC1 Phone', 'EC2', 'EC2 Phone'],
-      csvHeaders: ['Last Name', 'First Name', 'Guardian 1 Name', 'G1 Phone', 'G1 Email', 'Guardian 2 Name', 'G2 Phone', 'G2 Email', 'EC1 Name', 'EC1 Phone', 'EC2 Name', 'EC2 Phone'],
+      csvHeaders: ['Last Name', 'First Name', 'G1 First Name', 'G1 Last Name', 'G1 Phone', 'G1 Email', 'G2 First Name', 'G2 Last Name', 'G2 Phone', 'G2 Email', 'EC1 First Name', 'EC1 Last Name', 'EC1 Phone', 'EC2 First Name', 'EC2 Last Name', 'EC2 Phone'],
       render: r => [
         displayName(r),
         `${r.guardian1_first} ${r.guardian1_last}`.trim() || '—', fmtPhone(r.guardian1_phone), r.guardian1_email || '—',
@@ -204,10 +204,10 @@ export default function ReportsPage() {
       ],
       csvRow: r => [
         r.last_name, r.first_name,
-        `${r.guardian1_first} ${r.guardian1_last}`.trim(), r.guardian1_phone, r.guardian1_email,
-        `${r.guardian2_first} ${r.guardian2_last}`.trim(), r.guardian2_phone, r.guardian2_email,
-        `${r.ec1_first} ${r.ec1_last}`.trim(), r.ec1_phone,
-        `${r.ec2_first} ${r.ec2_last}`.trim(), r.ec2_phone,
+        r.guardian1_first, r.guardian1_last, r.guardian1_phone, r.guardian1_email,
+        r.guardian2_first, r.guardian2_last, r.guardian2_phone, r.guardian2_email,
+        r.ec1_first, r.ec1_last, r.ec1_phone,
+        r.ec2_first, r.ec2_last, r.ec2_phone,
       ],
     },
     medical: {
