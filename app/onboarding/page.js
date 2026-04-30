@@ -603,11 +603,11 @@ function Step3({ onComplete, onBack, onSkip, familyId }) {
 }
 
 // ── Step 4 ────────────────────────────────────────────────────────────────────
-function Step4({ onComplete, onBack, familyId }) {
+function Step4({ onComplete, onBack, familyId, ecForms, setEcForms }) {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
   const [existingEcIds, setExistingEcIds] = useState([null, null]);
-  const [forms, setForms] = useState([
+  const [forms, setForms] = useState(ecForms || [
     { first_name: '', last_name: '', phone: '' },
     { first_name: '', last_name: '', phone: '' },
   ]);
@@ -643,12 +643,20 @@ function Step4({ onComplete, onBack, familyId }) {
 
   function handleChange(idx, e) {
     const { name, value } = e.target;
-    setForms(f => f.map((item, i) => i === idx ? { ...item, [name]: value } : item));
+    setForms(f => {
+      const updated = f.map((item, i) => i === idx ? { ...item, [name]: value } : item);
+      setEcForms(updated);
+      return updated;
+    });
   }
 
   function handlePhone(idx, e) {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-    setForms(f => f.map((item, i) => i === idx ? { ...item, phone: digits } : item));
+    setForms(f => {
+      const updated = f.map((item, i) => i === idx ? { ...item, phone: digits } : item);
+      setEcForms(updated);
+      return updated;
+    });
   }
 
   async function handleSubmit(e) {
@@ -776,6 +784,7 @@ function Step4({ onComplete, onBack, familyId }) {
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [familyId, setFamilyId] = useState(null);
+  const [ecForms, setEcForms] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -819,7 +828,7 @@ export default function OnboardingPage() {
           {step === 1 && <Step1 onComplete={next} familyId={familyId} />}
           {step === 2 && <Step2 onComplete={next} onBack={back} familyId={familyId} />}
           {step === 3 && <Step3 onComplete={next} onBack={back} onSkip={next} familyId={familyId} />}
-          {step === 4 && <Step4 onComplete={() => { window.location.href = '/dashboard'; }} onBack={back} familyId={familyId} />}
+          {step === 4 && <Step4 onComplete={() => { window.location.href = '/dashboard'; }} onBack={back} familyId={familyId} ecForms={ecForms} setEcForms={setEcForms} />}
         </div>
       </main>
     </div>
