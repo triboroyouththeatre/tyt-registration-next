@@ -10,6 +10,7 @@ const NAV_TABS = [
   { label: 'Programs',      href: '/backstage/programs' },
   { label: 'Families',      href: '/backstage/families' },
   { label: 'Participants',  href: '/backstage/participants' },
+  { label: 'Settings',      href: '/backstage/settings' },
 ];
 
 export default async function BackstageLayout({ children }) {
