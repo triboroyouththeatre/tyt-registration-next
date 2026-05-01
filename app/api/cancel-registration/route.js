@@ -38,7 +38,7 @@ export async function POST(request) {
     if (!registrationId) return Response.json({ error: 'Missing registrationId' }, { status: 400 });
 
     // Fetch registration with all needed data
-    const { data: reg } = await admin
+    const { data: reg, error: regErr } = await admin
       .from('registrations')
       .select(`
         id, registration_number, family_id, participant_id,
@@ -50,7 +50,11 @@ export async function POST(request) {
       .eq('id', registrationId)
       .single();
 
-    if (!reg) return Response.json({ error: 'Registration not found' }, { status: 404 });
+    console.log('[cancel] registrationId received:', registrationId);
+    console.log('[cancel] reg result:', reg);
+    console.log('[cancel] reg error:', regErr);
+
+    if (!reg) return Response.json({ error: 'Registration not found', detail: regErr?.message, sentId: registrationId }, { status: 404 });
 
     const { data: family } = await admin.from('families').select('email').eq('id', reg.family_id).single();
     const { data: guardian } = await admin.from('contacts').select('first_name, last_name').eq('family_id', reg.family_id).eq('priority', 1).single();
