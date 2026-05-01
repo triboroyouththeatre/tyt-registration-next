@@ -100,16 +100,15 @@ function QuillEditor({ value, onChange, editorKey }) {
   return (
     <div>
       <style>{`
-        .ql-container { font-family: var(--font-body) !important; font-size: 0.875rem !important; min-height: 200px; }
-        .ql-toolbar { border-radius: 6px 6px 0 0 !important; border-color: #d1d5db !important; background: #f9fafb; }
-        .ql-container { border-radius: 0 0 6px 6px !important; border-color: #d1d5db !important; }
-        .ql-editor { min-height: 200px; line-height: 1.7; color: #111 !important; background: #fff !important; }
-        .ql-editor p { margin-bottom: 0.5rem; color: #111 !important; }
-        .ql-editor * { color: #111 !important; }
-        .ql-toolbar .ql-stroke { stroke: #444 !important; }
-        .ql-toolbar .ql-fill { fill: #444 !important; }
-        .ql-toolbar button { color: #444 !important; }
-        .ql-picker-label { color: #444 !important; }
+        .ql-container { font-family: Arial, sans-serif !important; font-size: 0.875rem !important; min-height: 200px; background: #ffffff; }
+        .ql-toolbar { border-radius: 6px 6px 0 0 !important; border-color: #d1d5db !important; background: #f9fafb !important; }
+        .ql-container.ql-snow { border-radius: 0 0 6px 6px !important; border-color: #d1d5db !important; background: #ffffff !important; }
+        .ql-editor { min-height: 200px; line-height: 1.7; color: #111111 !important; background-color: #ffffff !important; }
+        .ql-editor, .ql-editor p, .ql-editor li, .ql-editor h1, .ql-editor h2, .ql-editor h3, .ql-editor span { color: #111111 !important; }
+        .ql-toolbar.ql-snow .ql-stroke { stroke: #374151 !important; }
+        .ql-toolbar.ql-snow .ql-fill { fill: #374151 !important; }
+        .ql-toolbar.ql-snow button, .ql-toolbar.ql-snow .ql-picker-label { color: #374151 !important; }
+        .ql-snow .ql-picker-options { background: #ffffff !important; color: #111111 !important; }
       `}</style>
       <div ref={containerRef}><div /></div>
     </div>
