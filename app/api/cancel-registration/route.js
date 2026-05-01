@@ -33,15 +33,12 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const keyPayload = JSON.parse(Buffer.from((process.env.SUPABASE_SERVICE_ROLE_KEY || '').split('.')[1] || '', 'base64').toString());
-console.log('[cancel] runtime key role:', keyPayload?.role, 'ref:', keyPayload?.ref);
-
     const { registrationId, refundAmount, releaseSpot } = await request.json();
 
     if (!registrationId) return Response.json({ error: 'Missing registrationId' }, { status: 400 });
 
     // Fetch registration with all needed data
-    const { data: reg, error: regErr } = await admin
+    const { data: reg } = await admin
       .from('registrations')
       .select(`
         id, registration_number, family_id, participant_id,
@@ -53,17 +50,7 @@ console.log('[cancel] runtime key role:', keyPayload?.role, 'ref:', keyPayload?.
       .eq('id', registrationId)
       .single();
 
-    console.log('[cancel] registrationId received:', registrationId);
-    console.log('[cancel] reg result:', reg);
-    console.log('[cancel] reg error:', regErr);
-
-if (!reg) return Response.json({ 
-  error: 'Registration not found', 
-  detail: regErr?.message, 
-  sentId: registrationId,
-  runtimeKeyRole: keyPayload?.role,
-  runtimeKeyRef: keyPayload?.ref,
-}, { status: 404 });
+    if (!reg) return Response.json({ error: 'Registration not found' }, { status: 404 });
 
     const { data: family } = await admin.from('families').select('email').eq('id', reg.family_id).single();
     const { data: guardian } = await admin.from('contacts').select('first_name, last_name').eq('family_id', reg.family_id).eq('priority', 1).single();
