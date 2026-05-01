@@ -181,7 +181,7 @@ export default async function ProgramsPage({ searchParams }) {
                   </td>
                   <td style={{ padding: '0.75rem 1rem' }}>
                     <Link href={`/backstage/programs/${prog.id}`} style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#374151', textDecoration: 'none', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '0.3rem 0.75rem' }}>
-                      Edit
+                      View
                     </Link>
                   </td>
                 </tr>
