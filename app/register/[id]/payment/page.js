@@ -59,6 +59,20 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
       agreements: JSON.parse(sessionStorage.getItem(`agreements_${programId}_${item.participantId}`) || '[]'),
     }));
 
+    // Look for a stored waitlist token for any participant in this cart.
+    // In practice, waitlist offers target a single participant — we forward whichever
+    // token we find so save-registration can validate and accept it.
+    let waitlistToken = null;
+    let waitlistParticipantId = null;
+    for (const item of cartItems) {
+      const stored = sessionStorage.getItem(`waitlist_token_${programId}_${item.participantId}`);
+      if (stored) {
+        waitlistToken = stored;
+        waitlistParticipantId = item.participantId;
+        break;
+      }
+    }
+
     const res = await fetch('/api/save-registration', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -71,6 +85,8 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
         maxPayment,
         programData,
         stripeCustomerId,
+        waitlistToken,
+        waitlistParticipantId,
       }),
     });
 
@@ -110,6 +126,7 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
       cartItems.forEach(item => {
         sessionStorage.removeItem(`health_${programId}_${item.participantId}`);
         sessionStorage.removeItem(`agreements_${programId}_${item.participantId}`);
+        sessionStorage.removeItem(`waitlist_token_${programId}_${item.participantId}`);
       });
       sessionStorage.removeItem(`cart_${programId}`);
       router.push(`/register/${programId}/confirmation?participant=${cartItems[0]?.participantId}`);

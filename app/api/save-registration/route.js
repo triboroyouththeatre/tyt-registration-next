@@ -33,7 +33,31 @@ export async function POST(request) {
       cartItems, programId, stripePaymentIntentId,
       paymentAmount, totalCharged, maxPayment,
       programData, stripeCustomerId,
+      waitlistToken, waitlistParticipantId,
     } = await request.json();
+
+    // ── Validate waitlist token if present ────────────────────────────────────
+    // Defense-in-depth: even though the Health page validated this on entry,
+    // we re-validate here at write time to prevent tampering.
+    let waitlistEntry = null;
+    if (waitlistToken) {
+      const { data: entry } = await admin
+        .from('waitlist')
+        .select('id, status, family_id, program_id, participant_id, offer_token')
+        .eq('offer_token', waitlistToken)
+        .eq('program_id', programId)
+        .eq('participant_id', waitlistParticipantId)
+        .eq('family_id', familyId)
+        .eq('status', 'offered')
+        .maybeSingle();
+
+      if (!entry) {
+        return Response.json({
+          error: 'This waitlist offer is no longer available. The spot may have already been claimed or the offer may have been withdrawn.',
+        }, { status: 400 });
+      }
+      waitlistEntry = entry;
+    }
 
     const isFullPayment = Math.abs(paymentAmount - maxPayment) < 0.01;
     const paymentTypeId = isFullPayment ? PAYMENT_TYPE_FULL : PAYMENT_TYPE_DEPOSIT;
@@ -146,7 +170,22 @@ export async function POST(request) {
       });
     }
 
-    // 6. Auto-invoice for non-FA families with remaining balance
+    // 6. Mark waitlist entry as accepted (if applicable)
+    if (waitlistEntry) {
+      const { error: wlErr } = await admin
+        .from('waitlist')
+        .update({
+          status:      'accepted',
+          offer_token: null,
+        })
+        .eq('id', waitlistEntry.id);
+      if (wlErr) {
+        // Don't fail the whole transaction — log it. The registration is already saved.
+        console.error('[save-registration] Waitlist accept failed:', wlErr.message);
+      }
+    }
+
+    // 7. Auto-invoice for non-FA families with remaining balance
     const nonFARegs = createdRegistrations.filter(
       r => !r.financialAid && (r.totalFee - r.amountPaid) > 0.01
     );

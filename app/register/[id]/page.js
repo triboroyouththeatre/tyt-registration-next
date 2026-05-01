@@ -81,6 +81,7 @@ function HealthForm({ programId }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const participantId = searchParams.get('participant');
+  const waitlistToken = searchParams.get('waitlist_token');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -88,6 +89,11 @@ function HealthForm({ programId }) {
   const [program, setProgram] = useState(null);
   const [medicalAuth, setMedicalAuth] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  // Waitlist token state
+  const [tokenChecked, setTokenChecked] = useState(false);
+  const [tokenValid, setTokenValid] = useState(false);
+  const [tokenError, setTokenError] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -99,6 +105,35 @@ function HealthForm({ programId }) {
       ]);
       setParticipant(p);
       setProgram(prog);
+
+      // Validate waitlist token if present
+      if (waitlistToken) {
+        const { data: entry } = await supabase
+          .from('waitlist')
+          .select('id, status, program_id, participant_id, offer_token')
+          .eq('offer_token', waitlistToken)
+          .eq('program_id', programId)
+          .eq('participant_id', participantId)
+          .eq('status', 'offered')
+          .maybeSingle();
+
+        if (entry) {
+          setTokenValid(true);
+          // Persist the token in sessionStorage so it survives across the multi-step flow
+          sessionStorage.setItem(`waitlist_token_${programId}_${participantId}`, waitlistToken);
+        } else {
+          setTokenValid(false);
+          setTokenError('This offer is no longer available.');
+          // Clear any stale token
+          sessionStorage.removeItem(`waitlist_token_${programId}_${participantId}`);
+        }
+        setTokenChecked(true);
+      } else {
+        // No token in URL — check sessionStorage in case the user navigated back
+        const storedToken = sessionStorage.getItem(`waitlist_token_${programId}_${participantId}`);
+        if (storedToken) setTokenValid(true);
+        setTokenChecked(true);
+      }
 
       // Pre-fill from sessionStorage if returning via back button
       const saved = sessionStorage.getItem(`health_${programId}_${participantId}`);
@@ -125,7 +160,7 @@ function HealthForm({ programId }) {
       }
     }
     load();
-  }, [participantId, programId]);
+  }, [participantId, programId, waitlistToken]);
 
   function handleYesNo(name, val) {
     setForm(f => ({ ...f, [name]: val }));
@@ -171,14 +206,50 @@ function HealthForm({ programId }) {
     setSaving(true);
     const healthData = { ...form, participant_id: participantId, program_id: programId, medical_authorization: true };
     sessionStorage.setItem(`health_${programId}_${participantId}`, JSON.stringify(healthData));
-    router.push(`/register/${programId}/agreements?participant=${participantId}`);
+
+    // Preserve waitlist_token in URL so the next step can also see it
+    const nextUrl = waitlistToken
+      ? `/register/${programId}/agreements?participant=${participantId}&waitlist_token=${waitlistToken}`
+      : `/register/${programId}/agreements?participant=${participantId}`;
+    router.push(nextUrl);
   }
 
   const seasonDisplay = program?.sessions?.seasons?.display_name || program?.sessions?.seasons?.name;
 
+  // If a token was supplied but failed validation, block the form entirely
+  if (tokenChecked && waitlistToken && !tokenValid) {
+    return (
+      <>
+        <div className="tyt-error" style={{ marginBottom: '1rem' }}>{tokenError}</div>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+          The link you used is no longer valid. The spot may have already been claimed, the offer may have been withdrawn, or the link may have expired.
+        </p>
+        <a href="/dashboard" className="tyt-btn tyt-btn-secondary" style={{ display: 'inline-flex' }}>← Back to Dashboard</a>
+      </>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit}>
       {error && <div className="tyt-error">{error}</div>}
+
+      {/* Waitlist acceptance banner */}
+      {tokenValid && (
+        <div style={{
+          background: '#0d1a0a',
+          border: '1px solid var(--gold)',
+          borderRadius: 'var(--radius-md)',
+          padding: '1rem 1.25rem',
+          marginBottom: '1.5rem',
+        }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.25rem' }}>
+            Waitlist Acceptance
+          </p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            You&apos;re completing a registration from a waitlist offer. Complete all four steps to claim the spot.
+          </p>
+        </div>
+      )}
 
       {/* Context banner */}
       {participant && program && (
