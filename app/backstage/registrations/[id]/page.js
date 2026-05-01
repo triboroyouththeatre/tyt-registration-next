@@ -317,6 +317,11 @@ async function reloadPayments() {
   const [awardLevelId, setAwardLevelId] = useState('');
   // Reg status form
   const [newRegStatusId, setNewRegStatusId] = useState('');
+  const CANCELLED_STATUS_ID = '1878c625-8ce3-472c-b6d1-b84fdb04d90b';
+  const [cancelling, setCancelling]     = useState(false);
+  const [cancelDone, setCancelDone]     = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [spotReleased, setSpotReleased] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -444,6 +449,8 @@ async function reloadPayments() {
   }
 
   async function saveRegStatus() {
+    // If changing to Cancelled, let the cancellation panel handle it
+    if (newRegStatusId === CANCELLED_STATUS_ID) return;
     setSaving(true);
     const supabase = createClient();
     await supabase.from('registrations').update({ status_id: newRegStatusId, updated_at: new Date().toISOString() }).eq('id', regId);
@@ -453,6 +460,30 @@ async function reloadPayments() {
     setSaving(false);
     setSaveMsg('Registration status updated.');
     setTimeout(() => setSaveMsg(''), 3000);
+  }
+
+  async function confirmCancellation() {
+    setCancelling(true);
+    try {
+      const res = await fetch('/api/cancel-registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registrationId: regId,
+          refundAmount:   refundAmount || '0',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSaveMsg('Error: ' + (data.error || 'Cancellation failed.')); setCancelling(false); return; }
+      setReg(r => ({ ...r, registration_statuses: { id: CANCELLED_STATUS_ID, label: 'Cancelled' } }));
+      setEditingRegStatus(false);
+      setCancelDone(true);
+      setCancelling(false);
+      setSaveMsg(`Registration cancelled. ${parseFloat(refundAmount) > 0 ? `Refund of $${parseFloat(refundAmount).toFixed(2)} issued.` : 'No refund issued.'} Cancellation email sent.`);
+    } catch (err) {
+      setSaveMsg('Unexpected error during cancellation.');
+      setCancelling(false);
+    }
   }
 
   if (loading) {
@@ -605,13 +636,107 @@ async function reloadPayments() {
               </div>
               {editingRegStatus ? (
                 <div>
-                  <select value={newRegStatusId} onChange={e => setNewRegStatusId(e.target.value)} style={{ ...inputStyle, marginBottom: '0.5rem' }}>
+                  <select value={newRegStatusId} onChange={e => setNewRegStatusId(e.target.value)} style={{ ...inputStyle, marginBottom: '0.75rem' }}>
                     {regStatuses.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={saveRegStatus} disabled={saving} style={btnPrimary}>{saving ? 'Saving...' : 'Save'}</button>
-                    <button onClick={() => setEditingRegStatus(false)} style={btnSecondary}>Cancel</button>
-                  </div>
+
+                  {/* Cancellation panel */}
+                  {newRegStatusId === CANCELLED_STATUS_ID ? (
+                    <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '6px', padding: '1rem', marginBottom: '0.75rem' }}>
+                      <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#b40000', margin: '0 0 0.75rem 0' }}>
+                        ⚠ Cancellation — This cannot be undone
+                      </p>
+
+                      {/* Payment history summary */}
+                      {payments.length > 0 && (
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', margin: '0 0 0.4rem 0' }}>Payment History</p>
+                          {payments.map(pay => (
+                            <div key={pay.id} style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-body)', fontSize: '0.8rem', marginBottom: '0.2rem' }}>
+                              <span style={{ color: '#374151' }}>{pay.payment_method || pay.payment_types?.label} · {new Date(pay.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                              <span style={{ fontWeight: 600, color: parseFloat(pay.amount) < 0 ? '#b40000' : '#16a34a' }}>{fmt(pay.amount)}</span>
+                            </div>
+                          ))}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-body)', fontSize: '0.8rem', fontWeight: 600, marginTop: '0.4rem', paddingTop: '0.4rem', borderTop: '1px solid #fecaca' }}>
+                            <span style={{ color: '#374151' }}>Total Paid</span>
+                            <span style={{ color: '#111' }}>{fmt(reg.amount_paid)}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Refund amount */}
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: '0.3rem' }}>
+                          Refund Amount <span style={{ color: '#9ca3af', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>max {fmt(reg.amount_paid)}</span>
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#6b7280' }}>$</span>
+                          <input
+                            type="number"
+                            value={refundAmount}
+                            onChange={e => setRefundAmount(e.target.value)}
+                            step="0.01"
+                            min="0"
+                            max={reg.amount_paid}
+                            placeholder="0.00"
+                            style={{ ...inputStyle, paddingLeft: '1.5rem' }}
+                          />
+                        </div>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#6b7280', margin: '4px 0 0 0' }}>Enter 0 for no refund. Leave blank to refund nothing.</p>
+                      </div>
+
+                      {/* What will happen */}
+                      <div style={{ background: '#fff', border: '1px solid #fecaca', borderRadius: '4px', padding: '0.75rem', marginBottom: '0.75rem', fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: '#374151' }}>
+                        <p style={{ fontWeight: 600, margin: '0 0 0.3rem 0' }}>This will:</p>
+                        <p style={{ margin: '0 0 0.2rem 0' }}>✓ Set registration status to Cancelled</p>
+                        {parseFloat(refundAmount) > 0 && <p style={{ margin: '0 0 0.2rem 0' }}>✓ Issue Stripe refund of {fmt(refundAmount)}</p>}
+                        <p style={{ margin: '0 0 0.2rem 0' }}>✓ Void any outstanding Stripe invoice</p>
+                        <p style={{ margin: 0 }}>✓ Send cancellation email to family</p>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={confirmCancellation} disabled={cancelling} style={{ ...btnPrimary, background: '#b40000', opacity: cancelling ? 0.7 : 1 }}>
+                          {cancelling ? 'Processing...' : 'Confirm Cancellation'}
+                        </button>
+                        <button onClick={() => { setEditingRegStatus(false); setNewRegStatusId(reg.registration_statuses?.id || ''); }} style={btnSecondary}>
+                          Go Back
+                        </button>
+                      </div>
+
+                      {/* Release spot — shown after cancellation */}
+                      {cancelDone && !spotReleased && (
+                        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #fecaca' }}>
+                          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#d97706', margin: '0 0 0.5rem 0' }}>
+                            Release Spot?
+                          </p>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: '0 0 0.75rem 0' }}>
+                            The cancelled spot is currently held. Click below to make it available for new registrations.
+                          </p>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              onClick={() => setSpotReleased(true)}
+                              style={{ ...btnPrimary, background: '#d97706' }}
+                            >
+                              Release Spot
+                            </button>
+                            <button onClick={() => setSpotReleased(true)} style={btnSecondary}>
+                              Keep Spot Held
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {cancelDone && spotReleased && (
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#16a34a', margin: '0.75rem 0 0 0' }}>
+                          ✓ Spot released — enrollment count updated
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button onClick={saveRegStatus} disabled={saving} style={btnPrimary}>{saving ? 'Saving...' : 'Save'}</button>
+                      <button onClick={() => setEditingRegStatus(false)} style={btnSecondary}>Cancel</button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <StatusBadge label={reg.registration_statuses?.label} />
