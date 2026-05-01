@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/registration-schedule",
-      "schedule": "0 * * * *"
+      "schedule": "0 13 * * *"
     }
   ]
 }
