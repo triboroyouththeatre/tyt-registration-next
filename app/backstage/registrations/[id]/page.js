@@ -476,7 +476,6 @@ async function reloadPayments() {
       const data = await res.json();
       if (!res.ok) { setSaveMsg('Error: ' + (data.error || 'Cancellation failed.')); setCancelling(false); return; }
       setReg(r => ({ ...r, registration_statuses: { id: CANCELLED_STATUS_ID, label: 'Cancelled' } }));
-      setEditingRegStatus(false);
       setCancelDone(true);
       setCancelling(false);
       setSaveMsg(`Registration cancelled. ${parseFloat(refundAmount) > 0 ? `Refund of $${parseFloat(refundAmount).toFixed(2)} issued.` : 'No refund issued.'} Cancellation email sent.`);
@@ -714,14 +713,17 @@ async function reloadPayments() {
                           </p>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button
-                              onClick={() => setSpotReleased(true)}
-                              style={{ ...btnPrimary, background: '#d97706' }}
+                             onClick={() => { setSpotReleased(true); setEditingRegStatus(false); }}
+                             style={{ ...btnPrimary, background: '#d97706' }}
                             >
-                              Release Spot
+                             Release Spot
                             </button>
-                            <button onClick={() => setSpotReleased(true)} style={btnSecondary}>
-                              Keep Spot Held
-                            </button>
+                            <button 
+                            onClick={() => { setSpotReleased(true); setEditingRegStatus(false); }} 
+                            style={btnSecondary}
+                            >
+                            Keep Spot Held
+                           </button>
                           </div>
                         </div>
                       )}
