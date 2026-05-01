@@ -96,7 +96,7 @@ function QuillEditor({ value, onChange, editorKey }) {
         .ql-container { font-family: Arial, sans-serif !important; font-size: 0.875rem !important; min-height: 200px; background: #ffffff; }
         .ql-toolbar { border-radius: 6px 6px 0 0 !important; border-color: #d1d5db !important; background: #f9fafb !important; }
         .ql-container.ql-snow { border-radius: 0 0 6px 6px !important; border-color: #d1d5db !important; background: #ffffff !important; }
-        .ql-editor { min-height: 200px; line-height: 1.7; color: #111111 !important; background-color: #ffffff !important; }
+        .ql-editor { min-height: 200px; max-height: 400px; overflow-y: auto; line-height: 1.7; color: #111111 !important; background-color: #ffffff !important; }
         .ql-editor, .ql-editor p, .ql-editor li, .ql-editor h1, .ql-editor h2, .ql-editor h3, .ql-editor span { color: #111111 !important; }
         .ql-toolbar.ql-snow .ql-stroke { stroke: #374151 !important; }
         .ql-toolbar.ql-snow .ql-fill { fill: #374151 !important; }
@@ -571,7 +571,10 @@ function PolicyDocumentsSection() {
     const supabase = createClient();
     const { data } = await supabase.from('policy_documents').select('id, type, title, is_current').eq('is_current', true).order('type');
     setDocs(data || []);
-    if (data?.length && !activeId) loadDoc(data[0].id);
+    if (data?.length) {
+      const idToLoad = activeId || data[0].id;
+      loadDoc(idToLoad);
+    }
   }
 
   async function loadDoc(id) {
@@ -587,7 +590,8 @@ function PolicyDocumentsSection() {
   async function save() {
     setSaving(true);
     const supabase = createClient();
-    await supabase.from('policy_documents').update({ title: form.title, content: form.content, updated_at: new Date().toISOString() }).eq('id', activeId);
+    const { error } = await supabase.from('policy_documents').update({ title: form.title, content: form.content, updated_at: new Date().toISOString() }).eq('id', activeId);
+    if (error) { console.error('Policy save error:', error); setSaving(false); return; }
     // Refresh doc list (titles may have changed)
     const { data } = await supabase.from('policy_documents').select('id, type, title, is_current').eq('is_current', true).order('type');
     setDocs(data || []);
