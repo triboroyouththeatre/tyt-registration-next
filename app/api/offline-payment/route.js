@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
+import { renderEmail } from '@/lib/email-render';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend  = new Resend(process.env.RESEND_API_KEY);
@@ -22,7 +23,7 @@ function fmt(amount) {
 }
 
 function fmtDate(str) {
-  if (!str) return '—';
+  if (!str) return '\u2014';
   return new Date(str + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
@@ -142,7 +143,7 @@ export async function POST(request) {
                 auto_advance:     false,
                 collection_method: 'send_invoice',
                 days_until_due:   30,
-                description:      `Remaining balance — ${progLabel} (${participantName})`,
+                description:      `Remaining balance \u2014 ${progLabel} (${participantName})`,
               });
 
               await stripe.invoiceItems.create({
@@ -150,7 +151,7 @@ export async function POST(request) {
                 invoice:   newInvoice.id,
                 amount:    Math.round(newBalance * 100),
                 currency:  'usd',
-                description: `Remaining balance — ${progLabel} (${participantName})`,
+                description: `Remaining balance \u2014 ${progLabel} (${participantName})`,
               });
 
               await stripe.invoices.finalizeInvoice(newInvoice.id);
@@ -185,28 +186,23 @@ export async function POST(request) {
 
     if (template && family?.email) {
       const vars = {
-        '{{guardian_name}}':       guardianName,
-        '{{participant_name}}':    participantName,
-        '{{program_name}}':        progLabel,
-        '{{registration_number}}': reg.registration_number,
-        '{{amount_paid}}':         fmt(paymentAmount),
-        '{{payment_method}}':      method,
-        '{{balance_remaining}}':   fmt(newBalance),
-        '{{balance_due_date}}':    dueDate ? fmtDate(dueDate) : '—',
+        guardian_name:       guardianName,
+        participant_name:    participantName,
+        program_name:        progLabel,
+        registration_number: reg.registration_number,
+        amount_paid:         fmt(paymentAmount),
+        payment_method:      method,
+        balance_remaining:   newBalance > 0.01 ? fmt(newBalance) : '',
+        balance_due_date:    dueDate ? fmtDate(dueDate) : '',
       };
 
-      let subject  = template.subject;
-      let bodyHtml = template.body_html;
-      for (const [k, v] of Object.entries(vars)) {
-        subject  = subject.replaceAll(k, v);
-        bodyHtml = bodyHtml.replaceAll(k, v);
-      }
+      const { subject, html } = renderEmail(template, vars);
 
       await resend.emails.send({
         from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
         to:      family.email,
         subject,
-        html:    bodyHtml,
+        html,
       });
     }
 

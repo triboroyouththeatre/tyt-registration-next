@@ -52,31 +52,32 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
-async function saveRegistrations(stripePaymentIntentId) {
-  const cartItemsWithData = cartItems.map(item => ({
-    ...item,
-    health:     JSON.parse(sessionStorage.getItem(`health_${programId}_${item.participantId}`) || 'null'),
-    agreements: JSON.parse(sessionStorage.getItem(`agreements_${programId}_${item.participantId}`) || '[]'),
-  }));
+  async function saveRegistrations(stripePaymentIntentId) {
+    const cartItemsWithData = cartItems.map(item => ({
+      ...item,
+      health:     JSON.parse(sessionStorage.getItem(`health_${programId}_${item.participantId}`) || 'null'),
+      agreements: JSON.parse(sessionStorage.getItem(`agreements_${programId}_${item.participantId}`) || '[]'),
+    }));
 
-  const res = await fetch('/api/save-registration', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      cartItems:             cartItemsWithData,
-      programId,
-      stripePaymentIntentId,
-      paymentAmount,
-      totalCharged,
-      maxPayment,
-      programData,
-      stripeCustomerId,
-    }),
-  });
+    const res = await fetch('/api/save-registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cartItems:             cartItemsWithData,
+        programId,
+        stripePaymentIntentId,
+        paymentAmount,
+        totalCharged,
+        maxPayment,
+        programData,
+        stripeCustomerId,
+      }),
+    });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save registration');
-}
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save registration');
+    return data.registrations || [];
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -89,7 +90,23 @@ async function saveRegistrations(stripePaymentIntentId) {
     if (stripeError) { setError(stripeError.message); setProcessing(false); return; }
 
     if (paymentIntent.status === 'succeeded') {
-      try { await saveRegistrations(paymentIntent.id); } catch (dbErr) { console.error('[PaymentForm] DB error:', dbErr.message); }
+      let createdRegs = [];
+      try {
+        createdRegs = await saveRegistrations(paymentIntent.id);
+      } catch (dbErr) {
+        console.error('[PaymentForm] DB error:', dbErr.message);
+      }
+
+      // Fire confirmation email — fire-and-forget so it doesn't block the redirect
+      if (createdRegs.length > 0) {
+        const registrationIds = createdRegs.map(r => r.registrationId);
+        fetch('/api/send-confirmation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ registrationIds }),
+        }).catch(err => console.error('[PaymentForm] Confirmation email failed:', err));
+      }
+
       cartItems.forEach(item => {
         sessionStorage.removeItem(`health_${programId}_${item.participantId}`);
         sessionStorage.removeItem(`agreements_${programId}_${item.participantId}`);

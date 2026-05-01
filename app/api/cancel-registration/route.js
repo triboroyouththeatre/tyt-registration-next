@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
+import { renderEmail } from '@/lib/email-render';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend  = new Resend(process.env.RESEND_API_KEY);
@@ -15,7 +16,7 @@ function fmt(amount) {
 }
 
 function fmtDate(str) {
-  if (!str) return '—';
+  if (!str) return '\u2014';
   return new Date(str + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
@@ -61,14 +62,13 @@ export async function POST(request) {
     // 1. Issue Stripe refund if there's a payment intent and refund amount > 0
     if (reg.stripe_payment_intent_id && refundAmt > 0) {
       try {
-        // Get the charge from the payment intent
         const pi = await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id);
         const chargeId = pi.latest_charge;
 
         if (chargeId) {
           const refund = await stripe.refunds.create({
             charge: chargeId,
-            amount: Math.round(refundAmt * 100), // Convert to cents
+            amount: Math.round(refundAmt * 100),
           });
           stripeResults.refund = refund.id;
           stripeResults.refundStatus = refund.status;
@@ -108,7 +108,7 @@ export async function POST(request) {
       await admin.from('payments').insert({
         registration_id:  registrationId,
         family_id:        reg.family_id,
-        amount:           -refundAmt, // Negative to indicate refund
+        amount:           -refundAmt,
         status_id:        PAYMENT_STATUS_PAID,
         type_id:          PAYMENT_TYPE_REFUND,
         payment_method:   'Stripe Refund',
@@ -117,9 +117,8 @@ export async function POST(request) {
       });
     }
 
-    // 5. Release spot if requested (just let enrollment count drop naturally)
-    // Enrollment counts are derived from active registrations so changing
-    // status to Cancelled automatically reduces the count — no extra action needed.
+    // 5. Release spot — enrollment counts derive from active registrations,
+    //    so changing status to Cancelled automatically reduces the count.
 
     // 6. Send cancellation email
     const participantName = reg.participants?.nickname
@@ -136,23 +135,20 @@ export async function POST(request) {
 
     if (template && family?.email) {
       const vars = {
-        '{{guardian_name}}':       guardianName,
-        '{{participant_name}}':    participantName,
-        '{{program_name}}':        progLabel,
-        '{{registration_number}}': reg.registration_number,
-        '{{amount_refunded}}':     refundAmt > 0 ? fmt(refundAmt) : '$0.00 (no refund issued)',
+        guardian_name:       guardianName,
+        participant_name:    participantName,
+        program_name:        progLabel,
+        registration_number: reg.registration_number,
+        amount_refunded:     refundAmt > 0 ? fmt(refundAmt) : '$0.00 (no refund issued)',
       };
-      let subject  = template.subject;
-      let bodyHtml = template.body_html;
-      for (const [k, v] of Object.entries(vars)) {
-        subject  = subject.replaceAll(k, v);
-        bodyHtml = bodyHtml.replaceAll(k, v);
-      }
+
+      const { subject, html } = renderEmail(template, vars);
+
       await resend.emails.send({
         from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
         to:      family.email,
         subject,
-        html:    bodyHtml,
+        html,
       });
     }
 
