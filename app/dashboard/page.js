@@ -53,6 +53,21 @@ export default async function DashboardPage() {
     .eq('family_id', family?.id)
     .order('registered_at', { ascending: false });
 
+  // Fetch waitlist entries for this family (only active states)
+  const { data: waitlistEntries } = await supabase
+    .from('waitlist')
+    .select(`
+      id, status, offer_token, notified_at, created_at,
+      participants(first_name, last_name, nickname),
+      programs(
+        id, label,
+        sessions(name, seasons(name, display_name))
+      )
+    `)
+    .eq('family_id', family?.id)
+    .in('status', ['waiting', 'offered'])
+    .order('created_at', { ascending: false });
+
   // Get active sessions with display name
   const { data: activeSessions } = await supabase
     .from('sessions')
@@ -86,8 +101,16 @@ export default async function DashboardPage() {
     sum + ((r.total_fee || 0) - (r.amount_paid || 0)), 0
   );
 
+  const offeredEntries = (waitlistEntries || []).filter(w => w.status === 'offered');
+  const waitingEntries = (waitlistEntries || []).filter(w => w.status === 'waiting');
+
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+
+  function participantDisplayName(p) {
+    if (!p) return '';
+    return p.nickname ? `${p.nickname} ${p.last_name}` : `${p.first_name} ${p.last_name}`;
+  }
 
   return (
     <>
@@ -119,6 +142,16 @@ export default async function DashboardPage() {
           transition: background 0.15s;
         }
         .account-link:hover { background: var(--bg-hover); }
+        .waitlist-entry {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: var(--bg-card);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-md);
+          padding: 1rem 1.25rem;
+          gap: 1rem;
+        }
       `}</style>
 
       <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
@@ -149,6 +182,34 @@ export default async function DashboardPage() {
               Welcome Back{firstName ? `, ${firstName.toUpperCase()}` : ''}
             </h1>
           </div>
+
+          {/* Waitlist offer banner(s) — top priority action item */}
+          {offeredEntries.length > 0 && offeredEntries.map(entry => {
+            const pName = participantDisplayName(entry.participants);
+            const progLabel = entry.programs?.label || 'Program';
+            const link = `/register/${entry.programs?.id}?waitlist_token=${entry.offer_token}`;
+            return (
+              <div key={entry.id} style={{
+                background: '#0d1a0a', border: '1px solid var(--gold)',
+                borderRadius: 'var(--radius-md)', padding: '1.25rem 1.5rem',
+                marginBottom: '1.25rem', display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
+              }}>
+                <div>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '0.25rem' }}>
+                    Spot Available
+                  </p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.15rem' }}>
+                    {pName} &middot; {progLabel}
+                  </p>
+                  <p style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    A spot has opened up. Complete registration to claim it.
+                  </p>
+                </div>
+                <a href={link} className="tyt-btn tyt-btn-gold">Complete Registration</a>
+              </div>
+            );
+          })}
 
           {/* Balance banner */}
           {totalOwed > 0 && (
@@ -220,6 +281,48 @@ export default async function DashboardPage() {
               </div>
             )}
           </section>
+
+          {/* Waitlist (waiting entries only — offered ones live in the top banner) */}
+          {waitingEntries.length > 0 && (
+            <section style={{ marginBottom: '2.5rem' }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                Waitlist
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {waitingEntries.map(entry => {
+                  const pName = participantDisplayName(entry.participants);
+                  const progLabel = entry.programs?.label || 'Program';
+                  const seasonDisplay = entry.programs?.sessions?.seasons?.display_name || entry.programs?.sessions?.seasons?.name;
+                  return (
+                    <div key={entry.id} className="waitlist-entry">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-primary)', marginBottom: '0.15rem' }}>
+                          {pName}
+                        </p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                          {progLabel}{seasonDisplay ? ` · ${seasonDisplay} Season` : ''}
+                        </p>
+                      </div>
+                      <span style={{
+                        fontFamily: 'var(--font-display)',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        color: 'var(--text-muted)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '3px',
+                        padding: '0.25rem 0.65rem',
+                        flexShrink: 0,
+                      }}>
+                        Waiting
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Current Season */}
           <section style={{ marginBottom: '2.5rem' }}>
