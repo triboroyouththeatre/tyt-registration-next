@@ -54,10 +54,12 @@ export default async function DashboardPage() {
     .order('registered_at', { ascending: false });
 
   // Fetch waitlist entries for this family (only active states)
+  // NOTE: select participant_id explicitly so we can build the offer URL
   const { data: waitlistEntries } = await supabase
     .from('waitlist')
     .select(`
       id, status, offer_token, notified_at, created_at,
+      participant_id,
       participants(first_name, last_name, nickname),
       programs(
         id, label,
@@ -187,7 +189,8 @@ export default async function DashboardPage() {
           {offeredEntries.length > 0 && offeredEntries.map(entry => {
             const pName = participantDisplayName(entry.participants);
             const progLabel = entry.programs?.label || 'Program';
-            const link = `/register/${entry.programs?.id}?waitlist_token=${entry.offer_token}`;
+            // Include both waitlist_token AND participant in the URL
+            const link = `/register/${entry.programs?.id}?waitlist_token=${entry.offer_token}&participant=${entry.participant_id}`;
             return (
               <div key={entry.id} style={{
                 background: '#0d1a0a', border: '1px solid var(--gold)',
