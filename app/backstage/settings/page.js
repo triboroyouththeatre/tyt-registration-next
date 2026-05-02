@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import SeasonRolloverCard from '@/components/backstage/SeasonRolloverCard';
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const labelStyle = { fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: '0.3rem' };
@@ -182,6 +183,7 @@ function SeasonsSection() {
 
   return (
     <div>
+      <SeasonRollolverCard />
       {msg && <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '0.5rem 1rem', marginBottom: '1rem', fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#16a34a' }}>✓ {msg}</div>}
 
       <div style={cardStyle}>
