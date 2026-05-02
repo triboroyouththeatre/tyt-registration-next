@@ -107,22 +107,10 @@ function ProgramCard({ program, participants, enrollmentCounts, gradeLevels }) {
           {/* Description */}
           {program.description && (
             <div style={{ marginBottom: '1.5rem' }}>
-              {program.description.split('\n').map((line, i) => {
-                if (!line.trim()) return <br key={i} />;
-                // Section headers (all caps lines)
-                if (line === line.toUpperCase() && line.trim().length > 2) {
-                  return (
-                    <p key={i} style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', marginTop: '1rem', marginBottom: '0.25rem' }}>
-                      {line}
-                    </p>
-                  );
-                }
-                return (
-                  <p key={i} style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '0.25rem' }}>
-                    {line}
-                  </p>
-                );
-              })}
+              <div
+  style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.7 }}
+  dangerouslySetInnerHTML={{ __html: program.description }}
+/>
             </div>
           )}
 
