@@ -156,7 +156,7 @@ export default async function ProgramsPage({ searchParams }) {
             ) : filtered.map((prog, i) => {
               const pct = prog.enrollment_limit > 0 ? Math.round((prog.enrolled / prog.enrollment_limit) * 100) : 0;
               return (
-                <tr key={prog.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f3f4f6' }}>
+                <tr key={prog.id} onClick={() => window.location.href = `/backstage/programs/${prog.id}`} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f3f4f6', cursor: 'pointer' }}>
                   <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151' }}>
                     {prog.season?.display_name || prog.season?.name || '—'}
                     {prog.season?.is_active && <span style={{ marginLeft: '0.3rem', color: '#e0bf5c', fontSize: '0.7rem' }}>★</span>}
@@ -179,9 +179,9 @@ export default async function ProgramsPage({ searchParams }) {
                   <td style={{ padding: '0.75rem 1rem' }}>
                     <StatusBadge label={prog.statusLabel} color={prog.statusColor} bg={prog.statusBg} />
                   </td>
-                  <td style={{ padding: '0.75rem 1rem' }}>
-                    <Link href={`/backstage/programs/${prog.id}`} style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#374151', textDecoration: 'none', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '0.3rem 0.75rem' }}>
-                      View
+                  <td style={{ padding: '0.75rem 1rem' }} onClick={e => e.stopPropagation()}>
+                    <Link href={`/backstage/programs/${prog.id}/edit`} style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#374151', textDecoration: 'none', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '0.3rem 0.75rem' }}>
+                      Edit
                     </Link>
                   </td>
                 </tr>

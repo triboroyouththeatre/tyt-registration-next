@@ -12,6 +12,14 @@ export default async function FamiliesPage({ searchParams }) {
   const sp = await searchParams;
   const search = sp?.q || '';
 
+  // Only show family-role accounts — exclude admin accounts
+  const { data: familyProfiles } = await supabase
+    .from('profiles')
+    .select('family_id')
+    .eq('role', 'family');
+
+  const familyIds = (familyProfiles || []).map(p => p.family_id).filter(Boolean);
+
   const { data: families } = await supabase
     .from('families')
     .select(`
@@ -19,6 +27,7 @@ export default async function FamiliesPage({ searchParams }) {
       participants(id, first_name, last_name, nickname, is_active),
       contacts(id, first_name, last_name, priority)
     `)
+    .in('id', familyIds.length > 0 ? familyIds : ['00000000-0000-0000-0000-000000000000'])
     .order('email');
 
   // Get registration counts per family
