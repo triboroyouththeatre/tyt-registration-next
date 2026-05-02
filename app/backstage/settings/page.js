@@ -183,7 +183,7 @@ function SeasonsSection() {
 
   return (
     <div>
-      <SeasonRollolverCard />
+      <SeasonRolloverCard />
       {msg && <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '0.5rem 1rem', marginBottom: '1rem', fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#16a34a' }}>✓ {msg}</div>}
 
       <div style={cardStyle}>
