@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import SeasonRolloverCard from '@/components/backstage/SeasonRolloverCard';
+import RichTextEditor from '@/components/backstage/RichTextEditor';
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const labelStyle = { fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: '0.3rem' };
@@ -29,99 +30,6 @@ const ALL_VARIABLES = {
   'Payment':       ['{{amount_paid}}', '{{balance_due}}', '{{balance_due_date}}', '{{total_fee}}', '{{amount_refunded}}', '{{payment_method}}'],
   'Other':         ['{{urgency}}', '{{cancellation_reason}}', '{{new_balance}}'],
 };
-
-// ── Quill Editor ───────────────────────────────────────────────────────────────
-function QuillEditor({ value, onChange, editorKey }) {
-  const containerRef = useRef(null);
-  const quillRef     = useRef(null);
-  const isUpdating   = useRef(false);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    if (!document.getElementById('quill-css')) {
-      const link = document.createElement('link');
-      link.id   = 'quill-css';
-      link.rel  = 'stylesheet';
-      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css';
-      document.head.appendChild(link);
-    }
-
-    function initQuill(Quill) {
-      containerRef.current.innerHTML = '<div></div>';
-      const editor = new Quill(containerRef.current.firstChild, {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            [{ header: [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            [{ list: 'ordered' }, { list: 'bullet' }],
-            [{ indent: '-1' }, { indent: '+1' }],
-            ['link'], ['clean'],
-          ],
-        },
-      });
-      if (value) editor.root.innerHTML = value;
-      editor.on('text-change', () => {
-        if (!isUpdating.current) onChange(editor.root.innerHTML);
-      });
-      quillRef.current = editor;
-    }
-
-    if (window.Quill) {
-      initQuill(window.Quill);
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js';
-      script.onload = () => initQuill(window.Quill);
-      document.head.appendChild(script);
-    }
-
-    return () => { if (quillRef.current) quillRef.current.off('text-change'); };
-  }, [editorKey]);
-
-  useEffect(() => {
-    if (quillRef.current && value !== undefined) {
-      const current = quillRef.current.root.innerHTML;
-      if (current !== value) {
-        isUpdating.current = true;
-        quillRef.current.root.innerHTML = value || '';
-        isUpdating.current = false;
-      }
-    }
-  }, [value]);
-
-  return (
-    <div>
-      <style>{`
-        .ql-container { font-family: Arial, sans-serif !important; font-size: 0.875rem !important; min-height: 200px; background: #ffffff; }
-        .ql-toolbar { border-radius: 6px 6px 0 0 !important; border-color: #d1d5db !important; background: #f9fafb !important; }
-        .ql-container.ql-snow { border-radius: 0 0 6px 6px !important; border-color: #d1d5db !important; background: #ffffff !important; }
-        .ql-editor { min-height: 200px; max-height: 400px; overflow-y: auto; line-height: 1.7; color: #111111 !important; background-color: #ffffff !important; }
-        .ql-editor, .ql-editor p, .ql-editor li, .ql-editor h1, .ql-editor h2, .ql-editor h3, .ql-editor span { color: #111111 !important; }
-        .ql-toolbar.ql-snow .ql-stroke { stroke: #374151 !important; }
-        .ql-toolbar.ql-snow .ql-fill { fill: #374151 !important; }
-        .ql-toolbar.ql-snow button, .ql-toolbar.ql-snow .ql-picker-label { color: #374151 !important; }
-        .ql-snow .ql-picker-options { background: #ffffff !important; color: #111111 !important; }
-      `}</style>
-      <div ref={containerRef}><div /></div>
-    </div>
-  );
-}
-
-// ── Preview Box (fixed white text) ─────────────────────────────────────────────
-function PreviewBox({ html }) {
-  return (
-    <div style={{
-      border: '1px solid #d1d5db', borderRadius: '6px', padding: '1.25rem',
-      minHeight: '200px', background: '#ffffff',
-      fontFamily: 'Arial, sans-serif', fontSize: '0.875rem',
-      lineHeight: 1.7, color: '#111111',
-    }}>
-      <div style={{ color: '#111111' }} dangerouslySetInnerHTML={{ __html: html }} />
-    </div>
-  );
-}
 
 // ── Seasons & Sessions ─────────────────────────────────────────────────────────
 function SeasonsSection() {
@@ -294,11 +202,8 @@ function EmailTemplatesSection() {
   const [form, setForm]             = useState({ label: '', description: '', subject: '', body_html: '', variables: [] });
   const [saving, setSaving]         = useState(false);
   const [msg, setMsg]               = useState('');
-  const [preview, setPreview]       = useState(false);
-  const [editorKey, setEditorKey]   = useState(0);
   const [addingNew, setAddingNew]   = useState(false);
   const [newTemplate, setNewTemplate] = useState({ label: '', description: '', subject: '', body_html: '', variables: [] });
-  const [newEditorKey, setNewEditorKey] = useState(100);
 
   useEffect(() => { load(); }, []);
 
@@ -310,15 +215,12 @@ function EmailTemplatesSection() {
     if (data?.length && !activeId) {
       setActiveId(data[0].id);
       setForm({ label: data[0].label, description: data[0].description || '', subject: data[0].subject, body_html: data[0].body_html, variables: data[0].variables || [] });
-      setEditorKey(k => k + 1);
     }
   }
 
   function selectTemplate(t) {
     setActiveId(t.id);
     setForm({ label: t.label, description: t.description || '', subject: t.subject, body_html: t.body_html, variables: t.variables || [] });
-    setEditorKey(k => k + 1);
-    setPreview(false);
     setMsg('');
     setAddingNew(false);
   }
@@ -327,12 +229,12 @@ function EmailTemplatesSection() {
     setSaving(true);
     const supabase = createClient();
     await supabase.from('email_templates').update({
-      label:      form.label,
+      label:       form.label,
       description: form.description,
-      subject:    form.subject,
-      body_html:  form.body_html,
-      variables:  form.variables,
-      updated_at: new Date().toISOString(),
+      subject:     form.subject,
+      body_html:   form.body_html,
+      variables:   form.variables,
+      updated_at:  new Date().toISOString(),
     }).eq('id', activeId);
     await load();
     setSaving(false); setMsg('Template saved!'); setTimeout(() => setMsg(''), 2000);
@@ -405,7 +307,7 @@ function EmailTemplatesSection() {
             {t.label}
           </button>
         ))}
-        <button onClick={() => { setAddingNew(true); setActiveId(null); setNewEditorKey(k => k + 1); }} style={{ ...btnSmall, width: '100%', marginTop: '0.5rem', textAlign: 'center', color: '#b40000', borderColor: '#b40000', background: addingNew ? '#b40000' : '#fff', ...(addingNew ? { color: '#fff' } : {}) }}>
+        <button onClick={() => { setAddingNew(true); setActiveId(null); setNewTemplate({ label: '', description: '', subject: '', body_html: '', variables: [] }); }} style={{ ...btnSmall, width: '100%', marginTop: '0.5rem', textAlign: 'center', color: '#b40000', borderColor: '#b40000', background: addingNew ? '#b40000' : '#fff', ...(addingNew ? { color: '#fff' } : {}) }}>
           + New Template
         </button>
       </div>
@@ -432,7 +334,10 @@ function EmailTemplatesSection() {
           <VariablePicker selected={newTemplate.variables} onToggle={v => toggleVar(v, true)} />
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Email Body</label>
-            <QuillEditor key={newEditorKey} value={newTemplate.body_html} onChange={v => setNewTemplate(t => ({ ...t, body_html: v }))} editorKey={newEditorKey} />
+            <RichTextEditor
+              value={newTemplate.body_html}
+              onChange={v => setNewTemplate(t => ({ ...t, body_html: v }))}
+            />
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button onClick={createTemplate} disabled={saving || !newTemplate.label.trim() || !newTemplate.subject.trim()} style={{ ...btnPrimary, opacity: !newTemplate.label.trim() || !newTemplate.subject.trim() ? 0.5 : 1 }}>{saving ? 'Creating...' : 'Create Template'}</button>
@@ -459,11 +364,11 @@ function EmailTemplatesSection() {
           </div>
 
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-              <label style={labelStyle}>Email Body</label>
-              <button onClick={() => setPreview(!preview)} style={btnSmall}>{preview ? '← Edit' : 'Preview →'}</button>
-            </div>
-            {preview ? <PreviewBox html={form.body_html} /> : <QuillEditor key={editorKey} value={form.body_html} onChange={v => setForm(f => ({ ...f, body_html: v }))} editorKey={editorKey} />}
+            <label style={labelStyle}>Email Body</label>
+            <RichTextEditor
+              value={form.body_html}
+              onChange={v => setForm(f => ({ ...f, body_html: v }))}
+            />
           </div>
 
           <button onClick={save} disabled={saving} style={btnPrimary}>{saving ? 'Saving...' : 'Save Template'}</button>
@@ -562,8 +467,6 @@ function PolicyDocumentsSection() {
   const [form, setForm]         = useState({ title: '', content: '' });
   const [saving, setSaving]     = useState(false);
   const [msg, setMsg]           = useState('');
-  const [preview, setPreview]   = useState(false);
-  const [editorKey, setEditorKey] = useState(0);
   const [addingDoc, setAddingDoc] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
 
@@ -584,8 +487,6 @@ function PolicyDocumentsSection() {
     const { data } = await supabase.from('policy_documents').select('*').eq('id', id).single();
     setActiveId(id);
     setForm({ title: data?.title || '', content: data?.content || '' });
-    setEditorKey(k => k + 1);
-    setPreview(false);
     setMsg('');
   }
 
@@ -594,7 +495,6 @@ function PolicyDocumentsSection() {
     const supabase = createClient();
     const { error } = await supabase.from('policy_documents').update({ title: form.title, content: form.content, updated_at: new Date().toISOString() }).eq('id', activeId);
     if (error) { console.error('Policy save error:', error); setSaving(false); return; }
-    // Refresh doc list (titles may have changed)
     const { data } = await supabase.from('policy_documents').select('id, type, title, is_current').eq('is_current', true).order('type');
     setDocs(data || []);
     setSaving(false); setMsg('Document saved!'); setTimeout(() => setMsg(''), 2000);
@@ -647,11 +547,12 @@ function PolicyDocumentsSection() {
             <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} style={inputStyle} />
           </div>
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-              <label style={labelStyle}>Document Content</label>
-              <button onClick={() => setPreview(!preview)} style={btnSmall}>{preview ? '← Edit' : 'Preview →'}</button>
-            </div>
-            {preview ? <PreviewBox html={form.content} /> : <QuillEditor key={editorKey} value={form.content} onChange={v => setForm(f => ({ ...f, content: v }))} editorKey={editorKey} />}
+            <label style={labelStyle}>Document Content</label>
+            <RichTextEditor
+              value={form.content}
+              onChange={v => setForm(f => ({ ...f, content: v }))}
+              minHeight={300}
+            />
           </div>
           <button onClick={save} disabled={saving} style={btnPrimary}>{saving ? 'Saving...' : 'Save Document'}</button>
         </div>

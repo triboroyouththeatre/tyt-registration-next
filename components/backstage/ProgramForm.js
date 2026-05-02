@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import RichTextEditor from '@/components/backstage/RichTextEditor';
 
 const labelStyle = { fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: '0.3rem' };
 const inputStyle = { fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#111', border: '1px solid #d1d5db', borderRadius: '6px', padding: '0.5rem 0.75rem', width: '100%', boxSizing: 'border-box', background: '#fff' };
@@ -41,7 +42,6 @@ export default function ProgramForm({ program, seasons, sessions, programTypes }
     registration_closes_at: program?.registration_closes_at ? toLocalDateTimeInput(program.registration_closes_at) : '',
   });
 
-  // Track selected season to filter sessions
   const [selectedSeasonId, setSelectedSeasonId] = useState(program?.season_id || '');
 
   function toLocalDateTimeInput(iso) {
@@ -185,10 +185,19 @@ export default function ProgramForm({ program, seasons, sessions, programTypes }
                   {(programTypes || []).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
               </div>
+
+              {/* Description — rich text editor */}
               <div style={{ marginBottom: '0.75rem' }}>
                 <label style={labelStyle}>Description</label>
-                <textarea name="description" value={form.description} onChange={handleChange} rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Program description shown to families..." />
+                <RichTextEditor
+                  value={form.description}
+                  onChange={v => setForm(f => ({ ...f, description: v }))}
+                  minHeight={160}
+                  placeholder="Program description shown to families..."
+                />
               </div>
+
+              {/* Schedule — plain textarea (short, single-line intent) */}
               <div>
                 <label style={labelStyle}>Schedule Notes</label>
                 <textarea name="schedule" value={form.schedule} onChange={handleChange} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="e.g. Tuesdays & Thursdays 4-6pm" />
