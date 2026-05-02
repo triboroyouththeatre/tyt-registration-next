@@ -192,7 +192,7 @@ export default function ProgramForm({ program, seasons, sessions, programTypes }
                 <RichTextEditor
                   value={form.description}
                   onChange={v => setForm(f => ({ ...f, description: v }))}
-                  minHeight={160}
+                  minHeight={300}
                   placeholder="Program description shown to families..."
                 />
               </div>
