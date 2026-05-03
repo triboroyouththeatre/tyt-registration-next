@@ -79,7 +79,7 @@ function PrintButton({ doc, programId }) {
 
 // ─── Document Card ─────────────────────────────────────────────────────────────
 
-function DocumentCard({ doc, index, total, onScrolled, scrolled }) {
+function DocumentCard({ doc, index, total, onScrolled, scrolled, programId }) {
   const scrollRef = useRef(null);
 
   function handleScroll() {
@@ -323,6 +323,7 @@ export default function AgreementsPage() {
               total={documents.length}
               scrolled={!!scrolledDocs[doc.id]}
               onScrolled={() => handleDocScrolled(doc.id)}
+              programId={programId}
             />
           ))}
 
