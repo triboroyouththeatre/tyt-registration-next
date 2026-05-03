@@ -190,6 +190,7 @@ export default function ProgramForm({ program, seasons, sessions, programTypes }
               <div style={{ marginBottom: '0.75rem' }}>
                 <label style={labelStyle}>Description</label>
                 <RichTextEditor
+                 editorKey={program?.id || 'new'}
                  value={form.description}
                  onChange={v => setForm(f => ({ ...f, description: v }))}
                  minHeight={160}

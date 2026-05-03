@@ -377,6 +377,7 @@ function EmailTemplatesSection() {
             <label style={labelStyle}>Email Body</label>
             <RichTextEditor
               value={form.body_html}
+              editorKey={activeId}
               onChange={v => { formRef.current = { ...formRef.current, body_html: v }; setForm(f => ({ ...f, body_html: v })); }}
             />
           </div>
@@ -566,6 +567,8 @@ function PolicyDocumentsSection() {
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Document Content</label>
           <RichTextEditor
+            key={activeId}
+            editorKey={activeId}
             value={form.content}
             onChange={v => { formRef.current = { ...formRef.current, content: v }; setForm(f => ({ ...f, content: v })); }}
             minHeight={300}
