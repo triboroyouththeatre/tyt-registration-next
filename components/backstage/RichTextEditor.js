@@ -1,119 +1,31 @@
 'use client';
 
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-// TipTap v3: TextStyle, FontSize, and Color are named exports from extension-text-style
-import { TextStyle, FontSize, Color } from '@tiptap/extension-text-style';
-import TextAlign from '@tiptap/extension-text-align';
-import Subscript from '@tiptap/extension-subscript';
-import Superscript from '@tiptap/extension-superscript';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
+import { useRef, useMemo } from 'react';
 
-const FONT_SIZES = [
-  { label: 'Small',   value: '12px' },
-  { label: 'Default', value: ''     },
-  { label: 'Medium',  value: '18px' },
-  { label: 'Large',   value: '24px' },
-  { label: 'XL',      value: '32px' },
+// Jodit must be loaded client-side only — it requires the DOM (window/document).
+// next/dynamic with ssr:false ensures it never runs on the server.
+const JoditEditor = dynamic(() => import('jodit-react'), { ssr: false });
+
+// ── Toolbar configs ────────────────────────────────────────────────────────────
+// Full toolbar: for program descriptions and policy documents
+const FULL_BUTTONS = [
+  'bold', 'italic', 'underline', 'strikethrough', '|',
+  'font', 'fontsize', 'brush', '|',
+  'ul', 'ol', '|',
+  'left', 'center', 'right', 'justify', '|',
+  'link', 'unlink', '|',
+  'hr', '|',
+  'eraser', 'source',
 ];
 
-const COLORS = [
-  { label: 'Default', value: '' },
-  { label: 'Red',     value: '#b40000' },
-  { label: 'Gold',    value: '#b8860b' },
-  { label: 'Green',   value: '#16a34a' },
-  { label: 'Blue',    value: '#1d4ed8' },
-  { label: 'Gray',    value: '#6b7280' },
-  { label: 'Black',   value: '#111111' },
+// Lean toolbar: for email templates (no font size/color — email clients strip them)
+const LEAN_BUTTONS = [
+  'bold', 'italic', 'underline', '|',
+  'ul', 'ol', '|',
+  'link', 'unlink', '|',
+  'eraser', 'source',
 ];
-
-// ── Toolbar helpers ────────────────────────────────────────────────────────────
-function ToolbarButton({ onClick, active, disabled, title, children }) {
-  return (
-    <button
-      type="button"
-      onMouseDown={e => { e.preventDefault(); onClick(); }}
-      disabled={disabled}
-      title={title}
-      style={{
-        display:        'inline-flex',
-        alignItems:     'center',
-        justifyContent: 'center',
-        minWidth:       '28px',
-        height:         '26px',
-        padding:        '0 4px',
-        border:         'none',
-        borderRadius:   '3px',
-        cursor:         disabled ? 'default' : 'pointer',
-        background:     active ? '#e5e7eb' : 'transparent',
-        color:          active ? '#111' : '#374151',
-        opacity:        disabled ? 0.4 : 1,
-        fontSize:       '13px',
-        fontWeight:     active ? 700 : 400,
-        fontFamily:     'Arial, sans-serif',
-        transition:     'background 0.1s',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Divider() {
-  return (
-    <div style={{ width: '1px', height: '18px', background: '#d1d5db', margin: '0 3px', flexShrink: 0 }} />
-  );
-}
-
-// ── SelectWithFocus ────────────────────────────────────────────────────────────
-// Saves the editor selection on mousedown (before the select steals focus),
-// then restores it and runs the command in onChange.
-function SelectWithFocus({ editor, value, options, title, width = 80, onApply }) {
-  const savedSelection = useRef(null);
-
-  return (
-    <select
-      title={title}
-      value={value}
-      onMouseDown={() => {
-        if (editor) {
-          savedSelection.current = {
-            from: editor.state.selection.from,
-            to:   editor.state.selection.to,
-          };
-        }
-      }}
-      onChange={e => {
-        const val = e.target.value;
-        if (!editor) return;
-        editor.commands.focus();
-        if (savedSelection.current) {
-          const { from, to } = savedSelection.current;
-          editor.commands.setTextSelection({ from, to });
-        }
-        onApply(val);
-      }}
-      style={{
-        fontFamily:   'Arial, sans-serif',
-        fontSize:     '12px',
-        height:       '26px',
-        border:       '1px solid #d1d5db',
-        borderRadius: '3px',
-        background:   '#fff',
-        color:        '#374151',
-        cursor:       'pointer',
-        padding:      '0 4px',
-        width:        `${width}px`,
-      }}
-    >
-      {options.map(opt => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
-  );
-}
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function RichTextEditor({
@@ -125,238 +37,84 @@ export default function RichTextEditor({
   showColor = false,
   showAlign = false,
 }) {
-  const [htmlMode, setHtmlMode] = useState(false);
-  const [htmlValue, setHtmlValue] = useState(value || '');
+  const editorRef = useRef(null);
 
-  // When true, suppresses onChange during external (prop-driven) content syncs.
-  // Without this, switching between documents triggers onUpdate which calls onChange
-  // with the incoming doc's HTML, corrupting the parent form state.
-  const isExternalUpdate = useRef(false);
+  // Determine toolbar based on props
+  const buttons = (showFontSize || showColor || showAlign) ? FULL_BUTTONS : LEAN_BUTTONS;
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        hardBreak: { keepMarks: true },
-      }),
-      Underline,
-      Link.configure({
-        openOnClick:     false,
-        autolink:        true,
-        defaultProtocol: 'https',
-        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
-      }),
-      TextStyle,
-      FontSize,
-      Color,
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Subscript,
-      Superscript,
-    ],
-    content:   value || '',
-    onUpdate:  ({ editor }) => {
-      // Do not fire onChange if this update was triggered by a prop value sync.
-      // This prevents the race condition when switching between documents/templates.
-      if (isExternalUpdate.current) return;
-      const html = editor.getHTML();
-      setHtmlValue(html);
-      onChange(html);
+  // Jodit config — memoized so it doesn't recreate the editor on every render.
+  // This is the critical pattern for Jodit in React: stable config reference.
+  const config = useMemo(() => ({
+    readonly:        false,
+    placeholder:     placeholder || '',
+    minHeight:       minHeight,
+    maxHeight:       600,
+    buttons:         buttons,
+    buttonsMD:       buttons,
+    buttonsSM:       buttons,
+    buttonsXS:       buttons,
+    toolbarAdaptive: false,
+    showCharsCounter: false,
+    showWordsCounter: false,
+    showXPathInStatusbar: false,
+    askBeforePasteHTML:   false,
+    askBeforePasteFromWord: false,
+    defaultActionOnPaste: 'insert_clear_html',
+    // Clean output: strip Word/Google Docs garbage, keep clean HTML
+    cleanHTML: {
+      fillEmptyParagraph: false,
+      replaceNBSP:        true,
     },
-    editorProps: {
-      attributes: {
-        style: `min-height: ${minHeight}px; padding: 0.75rem 1rem; outline: none; font-family: Arial, sans-serif; font-size: 0.875rem; line-height: 1.7; color: #111; background: #fff;`,
-      },
+    // Style the editor to match your admin UI
+    style: {
+      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize:   '14px',
+      color:      '#111111',
     },
-    immediatelyRender: false,
-  });
+    theme: 'default',
+    // Disable features we don't need
+    enableDragAndDropFileToEditor: false,
+    uploader: { insertImageAsBase64URI: false },
+    filebrowser: { ajax: { url: '' } },
+    image: { useImageEditor: false },
+    // Remove the powered-by link
+    license: '',
+    disablePlugins: [
+      'image',
+      'file',
+      'video',
+      'media',
+      'speech-recognize',
+      'drag-and-drop-element',
+      'drag-and-drop',
+      'fullsize',
+      'about',
+      'print',
+      'preview',
+      'copy-format',
+      'table',
+      'xpath',
+    ].join(','),
+  }), [minHeight, placeholder, buttons]);
 
-  // Sync external value changes into editor (e.g. switching between policy documents
-  // or email templates). Uses isExternalUpdate to prevent the sync from firing onChange.
-  useEffect(() => {
-    if (!editor) return;
-    const currentHtml = editor.getHTML();
-    if (value !== undefined && value !== currentHtml) {
-      isExternalUpdate.current = true;
-      editor.commands.setContent(value || '', false);
-      setHtmlValue(value || '');
-      // Reset flag synchronously — setContent is synchronous in TipTap
-      isExternalUpdate.current = false;
-    }
-  }, [value, editor]);
-
-  const exitHtmlMode = useCallback(() => {
-    if (editor) {
-      // Also suppress onChange here since we're setting content from our own htmlValue state
-      isExternalUpdate.current = true;
-      editor.commands.setContent(htmlValue, false);
-      isExternalUpdate.current = false;
-      onChange(htmlValue);
-    }
-    setHtmlMode(false);
-  }, [editor, htmlValue, onChange]);
-
-  const setLink = useCallback(() => {
-    if (!editor) return;
-    const prev = editor.getAttributes('link').href || '';
-    const url  = window.prompt('Enter URL', prev);
-    if (url === null) return;
-    if (url === '') editor.chain().focus().extendMarkRange('link').unsetLink().run();
-    else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-  }, [editor]);
-
-  const currentFontSize = editor?.getAttributes('textStyle')?.fontSize || '';
-  const currentColor    = editor?.getAttributes('textStyle')?.color    || '';
-
-  if (!editor) return null;
-
+  // Jodit manages its own internal state and calls onBlur/onChange.
+  // We use onBlur for the final value capture to avoid excessive re-renders,
+  // but also wire onChange for real-time updates.
   return (
-    <div style={{ border: '1px solid #d1d5db', borderRadius: '6px', overflow: 'hidden', background: '#fff' }}>
-
-      {/* ── Toolbar ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '2px',
-        padding: '4px 8px', borderBottom: '1px solid #e5e7eb',
-        background: '#f9fafb', flexWrap: 'wrap', rowGap: '4px',
-      }}>
-        {!htmlMode && (
-          <>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-              active={editor.isActive('heading', { level: 2 })}
-              title="Heading"
-            >H</ToolbarButton>
-
-            <Divider />
-
-            {showFontSize && (
-              <>
-                <SelectWithFocus
-                  editor={editor}
-                  title="Font size"
-                  value={currentFontSize}
-                  options={FONT_SIZES}
-                  width={80}
-                  onApply={v => {
-                    if (!v) editor.chain().focus().unsetFontSize().run();
-                    else editor.chain().focus().setFontSize(v).run();
-                  }}
-                />
-                <Divider />
-              </>
-            )}
-
-            {showColor && (
-              <>
-                <SelectWithFocus
-                  editor={editor}
-                  title="Text color"
-                  value={currentColor}
-                  options={COLORS}
-                  width={80}
-                  onApply={v => {
-                    if (!v) editor.chain().focus().unsetColor().run();
-                    else editor.chain().focus().setColor(v).run();
-                  }}
-                />
-                <Divider />
-              </>
-            )}
-
-            <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
-              <strong>B</strong>
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic">
-              <em>I</em>
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline">
-              <span style={{ textDecoration: 'underline' }}>U</span>
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive('subscript')} title="Subscript">
-              X<sub style={{ fontSize: '9px' }}>2</sub>
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive('superscript')} title="Superscript">
-              X<sup style={{ fontSize: '9px' }}>2</sup>
-            </ToolbarButton>
-
-            <Divider />
-
-            {showAlign && (
-              <>
-                <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title="Align left">⬅</ToolbarButton>
-                <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title="Center">⬌</ToolbarButton>
-                <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title="Align right">➡</ToolbarButton>
-                <Divider />
-              </>
-            )}
-
-            <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">≡</ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">1≡</ToolbarButton>
-
-            <Divider />
-
-            <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Insert link">🔗</ToolbarButton>
-
-            <Divider />
-
-            <ToolbarButton onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} title="Clear formatting">✕</ToolbarButton>
-          </>
-        )}
-
-        <div style={{ marginLeft: 'auto' }}>
-          <button
-            type="button"
-            onMouseDown={e => { e.preventDefault(); if (htmlMode) exitHtmlMode(); else setHtmlMode(true); }}
-            style={{
-              fontFamily:    'var(--font-display, monospace)',
-              fontSize:      '0.6rem',
-              fontWeight:    700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              padding:       '0.2rem 0.6rem',
-              border:        `1px solid ${htmlMode ? '#7c3aed' : '#d1d5db'}`,
-              borderRadius:  '3px',
-              background:    htmlMode ? '#ede9fe' : '#fff',
-              color:         htmlMode ? '#7c3aed' : '#6b7280',
-              cursor:        'pointer',
-            }}
-          >
-            {htmlMode ? '← Rich Text' : '<> HTML'}
-          </button>
-        </div>
-      </div>
-
-      {/* ── Editor area ── */}
-      {htmlMode ? (
-        <textarea
-          value={htmlValue}
-          onChange={e => { setHtmlValue(e.target.value); onChange(e.target.value); }}
-          style={{
-            width: '100%', minHeight: `${minHeight}px`, maxHeight: '500px',
-            padding: '0.75rem 1rem', border: 'none', outline: 'none',
-            fontFamily: 'monospace', fontSize: '0.8rem', lineHeight: 1.6,
-            color: '#111', background: '#fafafa', resize: 'vertical',
-            boxSizing: 'border-box',
-          }}
-          spellCheck={false}
-        />
-      ) : (
-        <>
-          <style>{`
-            .tyt-rte .tiptap { outline: none; }
-            .tyt-rte .tiptap p { margin: 0 0 0.5em 0; }
-            .tyt-rte .tiptap p:last-child { margin-bottom: 0; }
-            .tyt-rte .tiptap h2 { font-size: 1.1em; font-weight: 700; margin: 0.75em 0 0.3em; }
-            .tyt-rte .tiptap ul, .tyt-rte .tiptap ol { padding-left: 1.4em; margin: 0.4em 0; }
-            .tyt-rte .tiptap li { margin: 0.15em 0; }
-            .tyt-rte .tiptap a { color: #b40000; text-decoration: underline; }
-            .tyt-rte .tiptap a:hover { opacity: 0.8; }
-            .tyt-rte .tiptap p[style*="text-align: center"] { text-align: center; }
-            .tyt-rte .tiptap p[style*="text-align: right"] { text-align: right; }
-          `}</style>
-          <div className="tyt-rte" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-            <EditorContent editor={editor} />
-          </div>
-        </>
-      )}
+    <div style={{ border: '1px solid #d1d5db', borderRadius: '6px', overflow: 'hidden' }}>
+      <style>{`
+        .jodit-container { border: none !important; }
+        .jodit-toolbar { border-bottom: 1px solid #e5e7eb !important; background: #f9fafb !important; }
+        .jodit-workplace { background: #fff !important; }
+        .jodit-status-bar { display: none !important; }
+      `}</style>
+      <JoditEditor
+        ref={editorRef}
+        value={value || ''}
+        config={config}
+        onBlur={newContent => onChange(newContent)}
+        onChange={newContent => onChange(newContent)}
+      />
     </div>
   );
 }
