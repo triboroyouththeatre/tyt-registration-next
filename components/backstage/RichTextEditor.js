@@ -78,7 +78,6 @@ function SelectWithFocus({ editor, value, options, title, width = 80, onApply })
       title={title}
       value={value}
       onMouseDown={() => {
-        // Save the current selection before the dropdown opens and steals focus
         if (editor) {
           savedSelection.current = {
             from: editor.state.selection.from,
@@ -89,7 +88,6 @@ function SelectWithFocus({ editor, value, options, title, width = 80, onApply })
       onChange={e => {
         const val = e.target.value;
         if (!editor) return;
-        // Restore focus and selection, then apply the command
         editor.commands.focus();
         if (savedSelection.current) {
           const { from, to } = savedSelection.current;
@@ -130,6 +128,11 @@ export default function RichTextEditor({
   const [htmlMode, setHtmlMode] = useState(false);
   const [htmlValue, setHtmlValue] = useState(value || '');
 
+  // When true, suppresses onChange during external (prop-driven) content syncs.
+  // Without this, switching between documents triggers onUpdate which calls onChange
+  // with the incoming doc's HTML, corrupting the parent form state.
+  const isExternalUpdate = useRef(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -151,6 +154,9 @@ export default function RichTextEditor({
     ],
     content:   value || '',
     onUpdate:  ({ editor }) => {
+      // Do not fire onChange if this update was triggered by a prop value sync.
+      // This prevents the race condition when switching between documents/templates.
+      if (isExternalUpdate.current) return;
       const html = editor.getHTML();
       setHtmlValue(html);
       onChange(html);
@@ -163,18 +169,26 @@ export default function RichTextEditor({
     immediatelyRender: false,
   });
 
+  // Sync external value changes into editor (e.g. switching between policy documents
+  // or email templates). Uses isExternalUpdate to prevent the sync from firing onChange.
   useEffect(() => {
     if (!editor) return;
     const currentHtml = editor.getHTML();
     if (value !== undefined && value !== currentHtml) {
+      isExternalUpdate.current = true;
       editor.commands.setContent(value || '', false);
       setHtmlValue(value || '');
+      // Reset flag synchronously — setContent is synchronous in TipTap
+      isExternalUpdate.current = false;
     }
   }, [value, editor]);
 
   const exitHtmlMode = useCallback(() => {
     if (editor) {
+      // Also suppress onChange here since we're setting content from our own htmlValue state
+      isExternalUpdate.current = true;
       editor.commands.setContent(htmlValue, false);
+      isExternalUpdate.current = false;
       onChange(htmlValue);
     }
     setHtmlMode(false);
