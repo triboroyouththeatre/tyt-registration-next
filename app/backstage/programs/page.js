@@ -156,30 +156,48 @@ export default async function ProgramsPage({ searchParams }) {
             ) : filtered.map((prog, i) => {
               const pct = prog.enrollment_limit > 0 ? Math.round((prog.enrolled / prog.enrollment_limit) * 100) : 0;
               return (
-                <tr key={prog.id} onClick={() => window.location.href = `/backstage/programs/${prog.id}`} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f3f4f6', cursor: 'pointer' }}>
-                  <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151' }}>
-                    {prog.season?.display_name || prog.season?.name || '—'}
-                    {prog.season?.is_active && <span style={{ marginLeft: '0.3rem', color: '#e0bf5c', fontSize: '0.7rem' }}>★</span>}
+                <tr key={prog.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f3f4f6' }}>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', textDecoration: 'none' }}>
+                      {prog.season?.display_name || prog.season?.name || '—'}
+                      {prog.season?.is_active && <span style={{ marginLeft: '0.3rem', color: '#e0bf5c', fontSize: '0.7rem' }}>★</span>}
+                    </Link>
                   </td>
-                  <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151' }}>{prog.session?.name || '—'}</td>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', textDecoration: 'none' }}>{prog.session?.name || '—'}</Link>
+                  </td>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', textDecoration: 'none' }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: 600, color: '#111', margin: 0 }}>{prog.label}</p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>${prog.fee} fee · ${prog.deposit_amount} deposit</p>
+                    </Link>
+                  </td>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', textDecoration: 'none' }}>
+                      <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 700, color: prog.isFull ? '#b40000' : '#111', margin: 0 }}>{prog.enrolled} / {prog.enrollment_limit}</p>
+                      <div style={{ height: '4px', background: '#e5e7eb', borderRadius: '2px', marginTop: '4px', width: '80px' }}>
+                        <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: prog.isFull ? '#b40000' : pct >= 80 ? '#d97706' : '#16a34a', borderRadius: '2px' }} />
+                      </div>
+                    </Link>
+                  </td>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', textDecoration: 'none' }}>${prog.fee}</Link>
+                  </td>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', textDecoration: 'none' }}>{fmtDate(prog.balance_due_date)}</Link>
+                  </td>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#6b7280', textDecoration: 'none' }}>{fmtDateTime(prog.registration_opens_at)}</Link>
+                  </td>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#6b7280', textDecoration: 'none' }}>{fmtDateTime(prog.registration_closes_at)}</Link>
+                  </td>
+                  <td style={{ padding: 0 }}>
+                    <Link href={`/backstage/programs/${prog.id}`} style={{ display: 'block', padding: '0.75rem 1rem', textDecoration: 'none' }}>
+                      <StatusBadge label={prog.statusLabel} color={prog.statusColor} bg={prog.statusBg} />
+                    </Link>
+                  </td>
                   <td style={{ padding: '0.75rem 1rem' }}>
-                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: 600, color: '#111', margin: 0 }}>{prog.label}</p>
-                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>${prog.fee} fee · ${prog.deposit_amount} deposit</p>
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem' }}>
-                    <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 700, color: prog.isFull ? '#b40000' : '#111', margin: 0 }}>{prog.enrolled} / {prog.enrollment_limit}</p>
-                    <div style={{ height: '4px', background: '#e5e7eb', borderRadius: '2px', marginTop: '4px', width: '80px' }}>
-                      <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: prog.isFull ? '#b40000' : pct >= 80 ? '#d97706' : '#16a34a', borderRadius: '2px' }} />
-                    </div>
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151' }}>${prog.fee}</td>
-                  <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151' }}>{fmtDate(prog.balance_due_date)}</td>
-                  <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#6b7280' }}>{fmtDateTime(prog.registration_opens_at)}</td>
-                  <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#6b7280' }}>{fmtDateTime(prog.registration_closes_at)}</td>
-                  <td style={{ padding: '0.75rem 1rem' }}>
-                    <StatusBadge label={prog.statusLabel} color={prog.statusColor} bg={prog.statusBg} />
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem' }} onClick={e => e.stopPropagation()}>
                     <Link href={`/backstage/programs/${prog.id}/edit`} style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#374151', textDecoration: 'none', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '0.3rem 0.75rem' }}>
                       Edit
                     </Link>
