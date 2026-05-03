@@ -55,60 +55,25 @@ function StepBar() {
 
 // ─── Print Button ──────────────────────────────────────────────────────────────
 
-function PrintButton({ doc }) {
-  function handlePrint() {
-    const html = `<!DOCTYPE html><html><head>
-<title>${DOC_TITLES[doc.type] || 'Document'}</title>
-<style>
-  body { font-family: Georgia, serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; color: #111; line-height: 1.7; font-size: 14px; }
-  h1 { font-size: 1.1rem; border-bottom: 2px solid #111; padding-bottom: .5rem; margin-bottom: 1.5rem; }
-  p { margin-bottom: 1rem; }
-  ul { margin: .5rem 0 1rem 1.5rem; }
-  li { margin-bottom: .4rem; }
-  a { color: #b40000; }
-  @media print { body { margin: 0; } }
-</style>
-</head><body>
-<h1>${DOC_TITLES[doc.type] || ''}</h1>
-${doc.content || ''}
-<p style="margin-top:2rem;font-size:12px;color:#666;">Triboro Youth Theatre — ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-</body></html>`;
-
-    // Use a Blob URL — more reliable than window.open + document.write
-    // and avoids popup blockers in modern browsers
-    const blob = new Blob([html], { type: 'text/html' });
-    const url  = URL.createObjectURL(blob);
-    const win  = window.open(url, '_blank');
-    if (win) {
-      win.addEventListener('load', () => {
-        win.focus();
-        win.print();
-        // Clean up blob URL after a short delay
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
-      });
-    } else {
-      // Popup was blocked — fall back to downloading
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = (DOC_TITLES[doc.type] || 'document').replace(/\s+/g, '-').toLowerCase() + '.html';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    }
-  }
+function PrintButton({ doc, programId }) {
+  // Link to the dedicated print page — no popups, no Blob URLs,
+  // works on all browsers including mobile Safari.
+  const href = `/register/${programId}/agreements/print?doc=${doc.type}`;
   return (
-    <button
-      type="button"
-      onClick={handlePrint}
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
       style={{
         background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
         padding: '0.25rem 0.65rem', color: 'var(--text-faint)',
         fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600,
         letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', gap: '0.3rem',
+        display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none',
       }}
     >
       ⎙ Print / Save
-    </button>
+    </a>
   );
 }
 
@@ -158,7 +123,7 @@ function DocumentCard({ doc, index, total, onScrolled, scrolled }) {
               ✓ Reviewed
             </span>
           )}
-          <PrintButton doc={doc} />
+          <PrintButton doc={doc} programId={programId} />
         </div>
       </div>
 
