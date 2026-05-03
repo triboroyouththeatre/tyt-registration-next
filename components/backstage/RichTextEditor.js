@@ -1,16 +1,16 @@
 'use client';
 
-import { useEditor, EditorContent, Extension } from '@tiptap/react';
+import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
+// TipTap v3: TextStyle, FontSize, and Color are named exports from extension-text-style
 import { TextStyle, FontSize, Color } from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-// Font sizes available in the dropdown
 const FONT_SIZES = [
   { label: 'Small',   value: '12px' },
   { label: 'Default', value: ''     },
@@ -19,7 +19,6 @@ const FONT_SIZES = [
   { label: 'XL',      value: '32px' },
 ];
 
-// Common text colors
 const COLORS = [
   { label: 'Default', value: '' },
   { label: 'Red',     value: '#b40000' },
@@ -31,7 +30,7 @@ const COLORS = [
 ];
 
 // ── Toolbar helpers ────────────────────────────────────────────────────────────
-function ToolbarButton({ onClick, active, disabled, title, children, style = {} }) {
+function ToolbarButton({ onClick, active, disabled, title, children }) {
   return (
     <button
       type="button"
@@ -55,7 +54,6 @@ function ToolbarButton({ onClick, active, disabled, title, children, style = {} 
         fontWeight:     active ? 700 : 400,
         fontFamily:     'Arial, sans-serif',
         transition:     'background 0.1s',
-        ...style,
       }}
     >
       {children}
@@ -65,20 +63,40 @@ function ToolbarButton({ onClick, active, disabled, title, children, style = {} 
 
 function Divider() {
   return (
-    <div style={{
-      width: '1px', height: '18px',
-      background: '#d1d5db', margin: '0 3px', flexShrink: 0,
-    }} />
+    <div style={{ width: '1px', height: '18px', background: '#d1d5db', margin: '0 3px', flexShrink: 0 }} />
   );
 }
 
-function ToolbarSelect({ value, onChange, options, title, width = 90 }) {
+// ── SelectWithFocus ────────────────────────────────────────────────────────────
+// Saves the editor selection on mousedown (before the select steals focus),
+// then restores it and runs the command in onChange.
+function SelectWithFocus({ editor, value, options, title, width = 80, onApply }) {
+  const savedSelection = useRef(null);
+
   return (
     <select
       title={title}
       value={value}
-      onMouseDown={e => e.stopPropagation()}
-      onChange={e => onChange(e.target.value)}
+      onMouseDown={() => {
+        // Save the current selection before the dropdown opens and steals focus
+        if (editor) {
+          savedSelection.current = {
+            from: editor.state.selection.from,
+            to:   editor.state.selection.to,
+          };
+        }
+      }}
+      onChange={e => {
+        const val = e.target.value;
+        if (!editor) return;
+        // Restore focus and selection, then apply the command
+        editor.commands.focus();
+        if (savedSelection.current) {
+          const { from, to } = savedSelection.current;
+          editor.commands.setTextSelection({ from, to });
+        }
+        onApply(val);
+      }}
       style={{
         fontFamily:   'Arial, sans-serif',
         fontSize:     '12px',
@@ -125,6 +143,7 @@ export default function RichTextEditor({
         HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
       }),
       TextStyle,
+      FontSize,
       Color,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Subscript,
@@ -144,7 +163,6 @@ export default function RichTextEditor({
     immediatelyRender: false,
   });
 
-  // Sync external value changes (e.g. switching templates)
   useEffect(() => {
     if (!editor) return;
     const currentHtml = editor.getHTML();
@@ -171,26 +189,8 @@ export default function RichTextEditor({
     else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   }, [editor]);
 
-  // Font size via TextStyle inline style
-  const setFontSize = useCallback((size) => {
-    if (!editor) return;
-    if (!size) {
-      editor.chain().focus().unsetMark('textStyle').run();
-    } else {
-      editor.chain().focus().setMark('textStyle', { style: `font-size: ${size}` }).run();
-    }
-  }, [editor]);
-
-  // Derive current font size from selection
-  const currentFontSize = (() => {
-    if (!editor) return '';
-    const attrs = editor.getAttributes('textStyle');
-    const match = attrs?.style?.match(/font-size:\s*([^;]+)/);
-    return match ? match[1].trim() : '';
-  })();
-
-  // Current color
-  const currentColor = editor?.getAttributes('textStyle')?.color || '';
+  const currentFontSize = editor?.getAttributes('textStyle')?.fontSize || '';
+  const currentColor    = editor?.getAttributes('textStyle')?.color    || '';
 
   if (!editor) return null;
 
@@ -205,7 +205,6 @@ export default function RichTextEditor({
       }}>
         {!htmlMode && (
           <>
-            {/* Heading */}
             <ToolbarButton
               onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
               active={editor.isActive('heading', { level: 2 })}
@@ -214,38 +213,40 @@ export default function RichTextEditor({
 
             <Divider />
 
-            {/* Font size */}
             {showFontSize && (
               <>
-                <ToolbarSelect
+                <SelectWithFocus
+                  editor={editor}
                   title="Font size"
                   value={currentFontSize}
-                  onChange={setFontSize}
                   options={FONT_SIZES}
                   width={80}
+                  onApply={v => {
+                    if (!v) editor.chain().focus().unsetFontSize().run();
+                    else editor.chain().focus().setFontSize(v).run();
+                  }}
                 />
                 <Divider />
               </>
             )}
 
-            {/* Color */}
             {showColor && (
               <>
-                <ToolbarSelect
+                <SelectWithFocus
+                  editor={editor}
                   title="Text color"
                   value={currentColor}
-                  onChange={v => {
+                  options={COLORS}
+                  width={80}
+                  onApply={v => {
                     if (!v) editor.chain().focus().unsetColor().run();
                     else editor.chain().focus().setColor(v).run();
                   }}
-                  options={COLORS}
-                  width={80}
                 />
                 <Divider />
               </>
             )}
 
-            {/* Inline marks */}
             <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
               <strong>B</strong>
             </ToolbarButton>
@@ -264,7 +265,6 @@ export default function RichTextEditor({
 
             <Divider />
 
-            {/* Alignment */}
             {showAlign && (
               <>
                 <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title="Align left">⬅</ToolbarButton>
@@ -274,23 +274,19 @@ export default function RichTextEditor({
               </>
             )}
 
-            {/* Lists */}
             <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">≡</ToolbarButton>
             <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">1≡</ToolbarButton>
 
             <Divider />
 
-            {/* Link */}
             <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Insert link">🔗</ToolbarButton>
 
             <Divider />
 
-            {/* Clear formatting */}
             <ToolbarButton onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} title="Clear formatting">✕</ToolbarButton>
           </>
         )}
 
-        {/* HTML toggle — always visible, right-aligned */}
         <div style={{ marginLeft: 'auto' }}>
           <button
             type="button"
