@@ -548,11 +548,14 @@ function PolicyDocumentsSection() {
           </div>
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Document Content</label>
-            <RichTextEditor
-              value={form.content}
-              onChange={v => setForm(f => ({ ...f, content: v }))}
-              minHeight={300}
-            />
+          <RichTextEditor
+            value={form.content}
+            onChange={v => setForm(f => ({ ...f, content: v }))}
+            minHeight={300}
+            showFontSize
+            showColor
+            showAlign
+          />
           </div>
           <button onClick={save} disabled={saving} style={btnPrimary}>{saving ? 'Saving...' : 'Save Document'}</button>
         </div>

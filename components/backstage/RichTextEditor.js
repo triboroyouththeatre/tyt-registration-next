@@ -1,13 +1,37 @@
 'use client';
 
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
+import { TextStyle, FontSize, Color } from '@tiptap/extension-text-style';
+import TextAlign from '@tiptap/extension-text-align';
+import Subscript from '@tiptap/extension-subscript';
+import Superscript from '@tiptap/extension-superscript';
 import { useState, useEffect, useCallback } from 'react';
 
-// ── Toolbar button ─────────────────────────────────────────────────────────────
-function ToolbarButton({ onClick, active, disabled, title, children }) {
+// Font sizes available in the dropdown
+const FONT_SIZES = [
+  { label: 'Small',   value: '12px' },
+  { label: 'Default', value: ''     },
+  { label: 'Medium',  value: '18px' },
+  { label: 'Large',   value: '24px' },
+  { label: 'XL',      value: '32px' },
+];
+
+// Common text colors
+const COLORS = [
+  { label: 'Default', value: '' },
+  { label: 'Red',     value: '#b40000' },
+  { label: 'Gold',    value: '#b8860b' },
+  { label: 'Green',   value: '#16a34a' },
+  { label: 'Blue',    value: '#1d4ed8' },
+  { label: 'Gray',    value: '#6b7280' },
+  { label: 'Black',   value: '#111111' },
+];
+
+// ── Toolbar helpers ────────────────────────────────────────────────────────────
+function ToolbarButton({ onClick, active, disabled, title, children, style = {} }) {
   return (
     <button
       type="button"
@@ -18,9 +42,9 @@ function ToolbarButton({ onClick, active, disabled, title, children }) {
         display:        'inline-flex',
         alignItems:     'center',
         justifyContent: 'center',
-        width:          '28px',
+        minWidth:       '28px',
         height:         '26px',
-        padding:        0,
+        padding:        '0 4px',
         border:         'none',
         borderRadius:   '3px',
         cursor:         disabled ? 'default' : 'pointer',
@@ -31,6 +55,7 @@ function ToolbarButton({ onClick, active, disabled, title, children }) {
         fontWeight:     active ? 700 : 400,
         fontFamily:     'Arial, sans-serif',
         transition:     'background 0.1s',
+        ...style,
       }}
     >
       {children}
@@ -41,41 +66,72 @@ function ToolbarButton({ onClick, active, disabled, title, children }) {
 function Divider() {
   return (
     <div style={{
-      width:      '1px',
-      height:     '18px',
-      background: '#d1d5db',
-      margin:     '0 4px',
-      flexShrink: 0,
+      width: '1px', height: '18px',
+      background: '#d1d5db', margin: '0 3px', flexShrink: 0,
     }} />
   );
 }
 
+function ToolbarSelect({ value, onChange, options, title, width = 90 }) {
+  return (
+    <select
+      title={title}
+      value={value}
+      onMouseDown={e => e.stopPropagation()}
+      onChange={e => onChange(e.target.value)}
+      style={{
+        fontFamily:   'Arial, sans-serif',
+        fontSize:     '12px',
+        height:       '26px',
+        border:       '1px solid #d1d5db',
+        borderRadius: '3px',
+        background:   '#fff',
+        color:        '#374151',
+        cursor:       'pointer',
+        padding:      '0 4px',
+        width:        `${width}px`,
+      }}
+    >
+      {options.map(opt => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
-export default function RichTextEditor({ value, onChange, minHeight = 200, placeholder = '' }) {
+export default function RichTextEditor({
+  value,
+  onChange,
+  minHeight = 200,
+  placeholder = '',
+  showFontSize = false,
+  showColor = false,
+  showAlign = false,
+}) {
   const [htmlMode, setHtmlMode] = useState(false);
   const [htmlValue, setHtmlValue] = useState(value || '');
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        // Ensure clean paragraph handling — Enter = new <p>, Shift+Enter = <br>
-        hardBreak: {
-          keepMarks: true,
-        },
+        hardBreak: { keepMarks: true },
       }),
       Underline,
       Link.configure({
-        openOnClick:        false,
-        autolink:           true,
-        defaultProtocol:    'https',
-        HTMLAttributes: {
-          rel:    'noopener noreferrer',
-          target: '_blank',
-        },
+        openOnClick:     false,
+        autolink:        true,
+        defaultProtocol: 'https',
+        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
       }),
+      TextStyle,
+      Color,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      Subscript,
+      Superscript,
     ],
-    content:       value || '',
-    onUpdate:      ({ editor }) => {
+    content:   value || '',
+    onUpdate:  ({ editor }) => {
       const html = editor.getHTML();
       setHtmlValue(html);
       onChange(html);
@@ -88,7 +144,7 @@ export default function RichTextEditor({ value, onChange, minHeight = 200, place
     immediatelyRender: false,
   });
 
-  // Sync external value changes into editor (e.g. when loading a different template)
+  // Sync external value changes (e.g. switching templates)
   useEffect(() => {
     if (!editor) return;
     const currentHtml = editor.getHTML();
@@ -98,7 +154,6 @@ export default function RichTextEditor({ value, onChange, minHeight = 200, place
     }
   }, [value, editor]);
 
-  // Switch from HTML mode back to rich text mode — parse the HTML
   const exitHtmlMode = useCallback(() => {
     if (editor) {
       editor.commands.setContent(htmlValue, false);
@@ -107,136 +162,151 @@ export default function RichTextEditor({ value, onChange, minHeight = 200, place
     setHtmlMode(false);
   }, [editor, htmlValue, onChange]);
 
-  // Link insertion
   const setLink = useCallback(() => {
     if (!editor) return;
     const prev = editor.getAttributes('link').href || '';
     const url  = window.prompt('Enter URL', prev);
     if (url === null) return;
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    if (url === '') editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  }, [editor]);
+
+  // Font size via TextStyle inline style
+  const setFontSize = useCallback((size) => {
+    if (!editor) return;
+    if (!size) {
+      editor.chain().focus().unsetMark('textStyle').run();
     } else {
-      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+      editor.chain().focus().setMark('textStyle', { style: `font-size: ${size}` }).run();
     }
   }, [editor]);
+
+  // Derive current font size from selection
+  const currentFontSize = (() => {
+    if (!editor) return '';
+    const attrs = editor.getAttributes('textStyle');
+    const match = attrs?.style?.match(/font-size:\s*([^;]+)/);
+    return match ? match[1].trim() : '';
+  })();
+
+  // Current color
+  const currentColor = editor?.getAttributes('textStyle')?.color || '';
 
   if (!editor) return null;
 
   return (
-    <div style={{
-      border:       '1px solid #d1d5db',
-      borderRadius: '6px',
-      overflow:     'hidden',
-      background:   '#fff',
-    }}>
+    <div style={{ border: '1px solid #d1d5db', borderRadius: '6px', overflow: 'hidden', background: '#fff' }}>
+
       {/* ── Toolbar ── */}
       <div style={{
-        display:        'flex',
-        alignItems:     'center',
-        gap:            '2px',
-        padding:        '4px 8px',
-        borderBottom:   '1px solid #e5e7eb',
-        background:     '#f9fafb',
-        flexWrap:       'wrap',
+        display: 'flex', alignItems: 'center', gap: '2px',
+        padding: '4px 8px', borderBottom: '1px solid #e5e7eb',
+        background: '#f9fafb', flexWrap: 'wrap', rowGap: '4px',
       }}>
         {!htmlMode && (
           <>
-            {/* Headings */}
+            {/* Heading */}
             <ToolbarButton
               onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
               active={editor.isActive('heading', { level: 2 })}
               title="Heading"
-            >
-              H
-            </ToolbarButton>
+            >H</ToolbarButton>
 
             <Divider />
+
+            {/* Font size */}
+            {showFontSize && (
+              <>
+                <ToolbarSelect
+                  title="Font size"
+                  value={currentFontSize}
+                  onChange={setFontSize}
+                  options={FONT_SIZES}
+                  width={80}
+                />
+                <Divider />
+              </>
+            )}
+
+            {/* Color */}
+            {showColor && (
+              <>
+                <ToolbarSelect
+                  title="Text color"
+                  value={currentColor}
+                  onChange={v => {
+                    if (!v) editor.chain().focus().unsetColor().run();
+                    else editor.chain().focus().setColor(v).run();
+                  }}
+                  options={COLORS}
+                  width={80}
+                />
+                <Divider />
+              </>
+            )}
 
             {/* Inline marks */}
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleBold().run()}
-              active={editor.isActive('bold')}
-              title="Bold"
-            >
+            <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
               <strong>B</strong>
             </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-              active={editor.isActive('italic')}
-              title="Italic"
-            >
+            <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic">
               <em>I</em>
             </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleUnderline().run()}
-              active={editor.isActive('underline')}
-              title="Underline"
-            >
+            <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline">
               <span style={{ textDecoration: 'underline' }}>U</span>
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive('subscript')} title="Subscript">
+              X<sub style={{ fontSize: '9px' }}>2</sub>
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive('superscript')} title="Superscript">
+              X<sup style={{ fontSize: '9px' }}>2</sup>
             </ToolbarButton>
 
             <Divider />
 
+            {/* Alignment */}
+            {showAlign && (
+              <>
+                <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title="Align left">⬅</ToolbarButton>
+                <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title="Center">⬌</ToolbarButton>
+                <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title="Align right">➡</ToolbarButton>
+                <Divider />
+              </>
+            )}
+
             {/* Lists */}
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-              active={editor.isActive('bulletList')}
-              title="Bullet list"
-            >
-              ≡
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              active={editor.isActive('orderedList')}
-              title="Numbered list"
-            >
-              1≡
-            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">≡</ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">1≡</ToolbarButton>
 
             <Divider />
 
             {/* Link */}
-            <ToolbarButton
-              onClick={setLink}
-              active={editor.isActive('link')}
-              title="Insert link"
-            >
-              🔗
-            </ToolbarButton>
+            <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Insert link">🔗</ToolbarButton>
 
             <Divider />
 
             {/* Clear formatting */}
-            <ToolbarButton
-              onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
-              title="Clear formatting"
-            >
-              ✕
-            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} title="Clear formatting">✕</ToolbarButton>
           </>
         )}
 
-        {/* HTML toggle — always shown, right-aligned */}
+        {/* HTML toggle — always visible, right-aligned */}
         <div style={{ marginLeft: 'auto' }}>
           <button
             type="button"
-            onMouseDown={e => {
-              e.preventDefault();
-              if (htmlMode) exitHtmlMode();
-              else setHtmlMode(true);
-            }}
+            onMouseDown={e => { e.preventDefault(); if (htmlMode) exitHtmlMode(); else setHtmlMode(true); }}
             style={{
-              fontFamily:      'var(--font-display, monospace)',
-              fontSize:        '0.6rem',
-              fontWeight:      700,
-              letterSpacing:   '0.08em',
-              textTransform:   'uppercase',
-              padding:         '0.2rem 0.6rem',
-              border:          `1px solid ${htmlMode ? '#7c3aed' : '#d1d5db'}`,
-              borderRadius:    '3px',
-              background:      htmlMode ? '#ede9fe' : '#fff',
-              color:           htmlMode ? '#7c3aed' : '#6b7280',
-              cursor:          'pointer',
+              fontFamily:    'var(--font-display, monospace)',
+              fontSize:      '0.6rem',
+              fontWeight:    700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              padding:       '0.2rem 0.6rem',
+              border:        `1px solid ${htmlMode ? '#7c3aed' : '#d1d5db'}`,
+              borderRadius:  '3px',
+              background:    htmlMode ? '#ede9fe' : '#fff',
+              color:         htmlMode ? '#7c3aed' : '#6b7280',
+              cursor:        'pointer',
             }}
           >
             {htmlMode ? '← Rich Text' : '<> HTML'}
@@ -248,24 +318,13 @@ export default function RichTextEditor({ value, onChange, minHeight = 200, place
       {htmlMode ? (
         <textarea
           value={htmlValue}
-          onChange={e => {
-            setHtmlValue(e.target.value);
-            onChange(e.target.value);
-          }}
+          onChange={e => { setHtmlValue(e.target.value); onChange(e.target.value); }}
           style={{
-            width:       '100%',
-            minHeight:   `${minHeight}px`,
-            maxHeight:   '500px',
-            padding:     '0.75rem 1rem',
-            border:      'none',
-            outline:     'none',
-            fontFamily:  'monospace',
-            fontSize:    '0.8rem',
-            lineHeight:  1.6,
-            color:       '#111',
-            background:  '#fafafa',
-            resize:      'vertical',
-            boxSizing:   'border-box',
+            width: '100%', minHeight: `${minHeight}px`, maxHeight: '500px',
+            padding: '0.75rem 1rem', border: 'none', outline: 'none',
+            fontFamily: 'monospace', fontSize: '0.8rem', lineHeight: 1.6,
+            color: '#111', background: '#fafafa', resize: 'vertical',
+            boxSizing: 'border-box',
           }}
           spellCheck={false}
         />
@@ -280,13 +339,8 @@ export default function RichTextEditor({ value, onChange, minHeight = 200, place
             .tyt-rte .tiptap li { margin: 0.15em 0; }
             .tyt-rte .tiptap a { color: #b40000; text-decoration: underline; }
             .tyt-rte .tiptap a:hover { opacity: 0.8; }
-            .tyt-rte .tiptap.is-editor-empty:first-child::before {
-              content: attr(data-placeholder);
-              float: left;
-              color: #9ca3af;
-              pointer-events: none;
-              height: 0;
-            }
+            .tyt-rte .tiptap p[style*="text-align: center"] { text-align: center; }
+            .tyt-rte .tiptap p[style*="text-align: right"] { text-align: right; }
           `}</style>
           <div className="tyt-rte" style={{ maxHeight: '500px', overflowY: 'auto' }}>
             <EditorContent editor={editor} />

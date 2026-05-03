@@ -190,11 +190,14 @@ export default function ProgramForm({ program, seasons, sessions, programTypes }
               <div style={{ marginBottom: '0.75rem' }}>
                 <label style={labelStyle}>Description</label>
                 <RichTextEditor
-                  value={form.description}
-                  onChange={v => setForm(f => ({ ...f, description: v }))}
-                  minHeight={300}
-                  placeholder="Program description shown to families..."
-                />
+                 value={form.description}
+                 onChange={v => setForm(f => ({ ...f, description: v }))}
+                 minHeight={160}
+                 placeholder="Program description shown to families..."
+                 showFontSize
+                 showColor
+                 showAlign
+               />
               </div>
 
               {/* Schedule — plain textarea (short, single-line intent) */}
