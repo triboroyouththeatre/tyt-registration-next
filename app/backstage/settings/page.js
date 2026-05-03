@@ -199,6 +199,7 @@ function SeasonsSection() {
 function EmailTemplatesSection() {
   const [templates, setTemplates]   = useState([]);
   const [activeId, setActiveId]     = useState(null);
+  const activeIdRef = useRef(null);
   const [form, setForm]             = useState({ label: '', description: '', subject: '', body_html: '', variables: [] });
   const formRef = useRef({ label: '', description: '', subject: '', body_html: '', variables: [] });
   const [saving, setSaving]         = useState(false);
@@ -213,14 +214,18 @@ function EmailTemplatesSection() {
     const { data, error } = await supabase.from('email_templates').select('*').order('label');
     if (error) { console.error('Email templates error:', error); return; }
     setTemplates(data || []);
-    if (data?.length && !activeId) {
+    if (data?.length && !activeIdRef.current) {
       setActiveId(data[0].id);
-      setForm({ label: data[0].label, description: data[0].description || '', subject: data[0].subject, body_html: data[0].body_html, variables: data[0].variables || [] });
+      activeIdRef.current = data[0].id;
+      const f = { label: data[0].label, description: data[0].description || '', subject: data[0].subject, body_html: data[0].body_html, variables: data[0].variables || [] };
+      formRef.current = f;
+      setForm(f);
     }
   }
 
   function selectTemplate(t) {
     setActiveId(t.id);
+    activeIdRef.current = t.id;
     const f = { label: t.label, description: t.description || '', subject: t.subject, body_html: t.body_html, variables: t.variables || [] };
     formRef.current = f;
     setForm(f);
@@ -240,7 +245,7 @@ function EmailTemplatesSection() {
       body_html:   current.body_html,
       variables:   current.variables,
       updated_at:  new Date().toISOString(),
-    }).eq('id', activeId);
+    }).eq('id', activeIdRef.current);
     await load();
     setSaving(false); setMsg('Template saved!'); setTimeout(() => setMsg(''), 2000);
   }
@@ -469,6 +474,7 @@ function ReferenceTableSection({ tableName, title, columns }) {
 function PolicyDocumentsSection() {
   const [docs, setDocs]         = useState([]);
   const [activeId, setActiveId] = useState(null);
+  const activeIdRef = useRef(null);
   const [form, setForm]         = useState({ title: '', content: '' });
   const formRef = useRef({ title: '', content: '' });
   const [saving, setSaving]     = useState(false);
@@ -492,6 +498,7 @@ function PolicyDocumentsSection() {
     const supabase = createClient();
     const { data } = await supabase.from('policy_documents').select('*').eq('id', id).single();
     setActiveId(id);
+    activeIdRef.current = id;
     const f = { title: data?.title || '', content: data?.content || '' };
     formRef.current = f;
     setForm(f);
@@ -503,7 +510,7 @@ function PolicyDocumentsSection() {
     // Use formRef to avoid stale closure — form state may not reflect latest editor value
     const current = formRef.current;
     const supabase = createClient();
-    const { error } = await supabase.from('policy_documents').update({ title: current.title, content: current.content, updated_at: new Date().toISOString() }).eq('id', activeId);
+    const { error } = await supabase.from('policy_documents').update({ title: current.title, content: current.content, updated_at: new Date().toISOString() }).eq('id', activeIdRef.current);
     if (error) { console.error('Policy save error:', error); setSaving(false); return; }
     const { data } = await supabase.from('policy_documents').select('id, type, title, is_current').eq('is_current', true).order('type');
     setDocs(data || []);
