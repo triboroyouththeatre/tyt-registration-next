@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import SeasonRolloverCard from '@/components/backstage/SeasonRolloverCard';
 import RichTextEditor from '@/components/backstage/RichTextEditor';
@@ -200,6 +200,7 @@ function EmailTemplatesSection() {
   const [templates, setTemplates]   = useState([]);
   const [activeId, setActiveId]     = useState(null);
   const [form, setForm]             = useState({ label: '', description: '', subject: '', body_html: '', variables: [] });
+  const formRef = useRef({ label: '', description: '', subject: '', body_html: '', variables: [] });
   const [saving, setSaving]         = useState(false);
   const [msg, setMsg]               = useState('');
   const [addingNew, setAddingNew]   = useState(false);
@@ -220,20 +221,24 @@ function EmailTemplatesSection() {
 
   function selectTemplate(t) {
     setActiveId(t.id);
-    setForm({ label: t.label, description: t.description || '', subject: t.subject, body_html: t.body_html, variables: t.variables || [] });
+    const f = { label: t.label, description: t.description || '', subject: t.subject, body_html: t.body_html, variables: t.variables || [] };
+    formRef.current = f;
+    setForm(f);
     setMsg('');
     setAddingNew(false);
   }
 
   async function save() {
     setSaving(true);
+    // Use formRef to avoid stale closure — form state may not reflect latest editor value
+    const current = formRef.current;
     const supabase = createClient();
     await supabase.from('email_templates').update({
-      label:       form.label,
-      description: form.description,
-      subject:     form.subject,
-      body_html:   form.body_html,
-      variables:   form.variables,
+      label:       current.label,
+      description: current.description,
+      subject:     current.subject,
+      body_html:   current.body_html,
+      variables:   current.variables,
       updated_at:  new Date().toISOString(),
     }).eq('id', activeId);
     await load();
@@ -360,14 +365,14 @@ function EmailTemplatesSection() {
 
           <div style={{ marginBottom: '0.75rem' }}>
             <label style={labelStyle}>Subject Line</label>
-            <input type="text" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} style={inputStyle} />
+            <input type="text" value={form.subject} onChange={e => { const v = e.target.value; formRef.current = { ...formRef.current, subject: v }; setForm(f => ({ ...f, subject: v })); }} style={inputStyle} />
           </div>
 
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Email Body</label>
             <RichTextEditor
               value={form.body_html}
-              onChange={v => setForm(f => ({ ...f, body_html: v }))}
+              onChange={v => { formRef.current = { ...formRef.current, body_html: v }; setForm(f => ({ ...f, body_html: v })); }}
             />
           </div>
 
@@ -465,6 +470,7 @@ function PolicyDocumentsSection() {
   const [docs, setDocs]         = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [form, setForm]         = useState({ title: '', content: '' });
+  const formRef = useRef({ title: '', content: '' });
   const [saving, setSaving]     = useState(false);
   const [msg, setMsg]           = useState('');
   const [addingDoc, setAddingDoc] = useState(false);
@@ -486,14 +492,18 @@ function PolicyDocumentsSection() {
     const supabase = createClient();
     const { data } = await supabase.from('policy_documents').select('*').eq('id', id).single();
     setActiveId(id);
-    setForm({ title: data?.title || '', content: data?.content || '' });
+    const f = { title: data?.title || '', content: data?.content || '' };
+    formRef.current = f;
+    setForm(f);
     setMsg('');
   }
 
   async function save() {
     setSaving(true);
+    // Use formRef to avoid stale closure — form state may not reflect latest editor value
+    const current = formRef.current;
     const supabase = createClient();
-    const { error } = await supabase.from('policy_documents').update({ title: form.title, content: form.content, updated_at: new Date().toISOString() }).eq('id', activeId);
+    const { error } = await supabase.from('policy_documents').update({ title: current.title, content: current.content, updated_at: new Date().toISOString() }).eq('id', activeId);
     if (error) { console.error('Policy save error:', error); setSaving(false); return; }
     const { data } = await supabase.from('policy_documents').select('id, type, title, is_current').eq('is_current', true).order('type');
     setDocs(data || []);
@@ -544,13 +554,13 @@ function PolicyDocumentsSection() {
           {msg && <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '0.5rem 1rem', marginBottom: '1rem', fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#16a34a' }}>✓ {msg}</div>}
           <div style={{ marginBottom: '0.75rem' }}>
             <label style={labelStyle}>Document Title</label>
-            <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} style={inputStyle} />
+            <input type="text" value={form.title} onChange={e => { const v = e.target.value; formRef.current = { ...formRef.current, title: v }; setForm(f => ({ ...f, title: v })); }} style={inputStyle} />
           </div>
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Document Content</label>
           <RichTextEditor
             value={form.content}
-            onChange={v => setForm(f => ({ ...f, content: v }))}
+            onChange={v => { formRef.current = { ...formRef.current, content: v }; setForm(f => ({ ...f, content: v })); }}
             minHeight={300}
             showFontSize
             showColor
