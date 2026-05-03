@@ -135,6 +135,12 @@ export async function POST(request) {
       }
 
       // 4. Insert agreements
+      // Capture IP and user agent server-side for E-SIGN audit trail
+      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+             || request.headers.get('x-real-ip')
+             || 'unknown';
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+
       for (const agreement of agreements) {
         const { error: agreeErr } = await admin.from('agreements').insert({
           registration_id:    reg.id,
@@ -142,7 +148,8 @@ export async function POST(request) {
           policy_document_id: agreement.policy_document_id,
           agreed_by:          agreement.agreed_by,
           agreed_at:          agreement.agreed_at,
-          ip_address:         'n/a',
+          ip_address:         ip,
+          user_agent:         userAgent,
         });
         if (agreeErr) throw new Error('Agreement: ' + agreeErr.message);
       }

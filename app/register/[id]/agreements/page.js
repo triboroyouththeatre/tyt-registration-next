@@ -342,11 +342,11 @@ export default function AgreementsPage() {
                 Electronic Signature
               </p>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '1.25rem' }}>
-                By typing your name below and clicking "Continue", you acknowledge that you have read and agree
-                to all three policies above. You understand that your typed name constitutes a legally binding
-                electronic signature under the Electronic Signatures in Global and National Commerce Act
-                (E-SIGN Act, 15 U.S.C. § 7001) and applicable state law, and carries the same legal weight
-                as a handwritten signature.
+                By typing my name below and clicking "Continue," I acknowledge that I have read and agree
+                to all provisions of this Agreement. I understand that my typed name constitutes a legally
+                binding electronic signature under the Electronic Signatures in Global and National Commerce
+                Act (E-SIGN Act, 15 U.S.C. § 7001) and the Massachusetts Uniform Electronic Transactions
+                Act (M.G.L. c. 110G), and carries the same legal weight as a handwritten signature.
               </p>
               <label className="tyt-label" style={{ color: 'var(--text-primary)' }}>
                 Full Name <span style={{ color: 'var(--red)' }}>*</span>
