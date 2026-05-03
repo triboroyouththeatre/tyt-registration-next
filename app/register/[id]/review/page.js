@@ -332,6 +332,44 @@ export default function ReviewPage() {
                   </div>
                 )}
 
+                {/* Signature Record */}
+                {agreementData?.[0] && (
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginBottom: '0' }}>
+                    <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '0.75rem' }}>
+                      Electronic Signature Record
+                    </p>
+                    <div style={{ background: 'var(--bg-hover)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', flexShrink: 0 }}>Signed By</span>
+                        <span style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontSize: '1rem', color: 'var(--gold)' }}>{agreementData[0].agreed_by}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', flexShrink: 0 }}>Date & Time</span>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                          {new Date(agreementData[0].agreed_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}
+                        </span>
+                      </div>
+                      {agreementData[0].ip_address && agreementData[0].ip_address !== 'unknown' && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', flexShrink: 0 }}>IP Address</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{agreementData[0].ip_address}</span>
+                        </div>
+                      )}
+                      {agreementData[0].user_agent && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', flexShrink: 0, paddingTop: '0.1rem' }}>Device</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)', textAlign: 'right', wordBreak: 'break-word', maxWidth: '70%' }}>{agreementData[0].user_agent}</span>
+                        </div>
+                      )}
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'var(--text-faint)', lineHeight: 1.5 }}>
+                          This signature record applies to all three policy documents. A complete audit record will be stored upon payment.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Fees */}
                 <div style={{ borderTop: healthData ? '1px solid var(--border)' : 'none', paddingTop: healthData ? '1rem' : 0 }}>
                   <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '0.5rem' }}>Fees</p>

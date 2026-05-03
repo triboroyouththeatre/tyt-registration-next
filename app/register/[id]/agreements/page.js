@@ -230,11 +230,26 @@ export default function AgreementsPage() {
     }
 
     setSaving(true);
+
+    // Capture IP address and device string for E-SIGN audit record
+    let ipAddress = 'unknown';
+    try {
+      const ipRes = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipRes.json();
+      ipAddress = ipData.ip || 'unknown';
+    } catch {
+      ipAddress = 'unavailable';
+    }
+    const userAgent = navigator.userAgent || 'unknown';
+    const signedAt  = new Date().toISOString();
+
     const agreementData = documents.map(d => ({
       policy_document_id: d.id,
       type:               d.type,
       agreed_by:          signatureName.trim(),
-      agreed_at:          new Date().toISOString(),
+      agreed_at:          signedAt,
+      ip_address:         ipAddress,
+      user_agent:         userAgent,
     }));
     sessionStorage.setItem(`agreements_${programId}_${participantId}`, JSON.stringify(agreementData));
     router.push(`/register/${programId}/review?participant=${participantId}`);
