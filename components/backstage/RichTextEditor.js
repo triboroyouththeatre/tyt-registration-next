@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic';
 import { useRef, useMemo, useState } from 'react';
 
-// Jodit must be loaded client-side only — it requires the DOM.
 const JoditEditor = dynamic(() => import('jodit-react'), { ssr: false });
 
 const FULL_BUTTONS = [
@@ -31,14 +30,16 @@ export default function RichTextEditor({
   showFontSize = false,
   showColor = false,
   showAlign = false,
-  // editorKey: pass the document/template ID here so the editor
-  // fully remounts when you switch between documents.
-  // This is the correct Jodit pattern for switching content.
   editorKey,
+  // joditRef: pass a useRef() from the parent so the parent's save function
+  // can read editor.current.value directly at save time, bypassing the
+  // onBlur timing problem where clicking Save doesn't trigger blur first.
+  joditRef,
 }) {
-  const editor = useRef(null);
-  // Jodit is uncontrolled — it owns its own content internally.
-  // We initialize with the value prop and only read back on blur.
+  // Use the passed ref if provided, otherwise create a local one
+  const localRef = useRef(null);
+  const editor = joditRef || localRef;
+
   const [content, setContent] = useState(value || '');
   const buttons = (showFontSize || showColor || showAlign) ? FULL_BUTTONS : LEAN_BUTTONS;
 
@@ -94,8 +95,9 @@ export default function RichTextEditor({
         value={content}
         config={config}
         tabIndex={1}
-        // Per official Jodit docs: ONLY use onBlur to update content.
-        // Using onChange causes re-renders that reset the editor.
+        // Per official Jodit docs: only use onBlur, leave onChange empty.
+        // The parent reads editor.current.value directly at save time
+        // via joditRef to avoid the onBlur/click-order timing problem.
         onBlur={newContent => {
           setContent(newContent);
           onChange(newContent);

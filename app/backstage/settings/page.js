@@ -202,6 +202,7 @@ function EmailTemplatesSection() {
   const activeIdRef = useRef(null);
   const [form, setForm]             = useState({ label: '', description: '', subject: '', body_html: '', variables: [] });
   const formRef = useRef({ label: '', description: '', subject: '', body_html: '', variables: [] });
+  const joditRef = useRef(null);
   const [saving, setSaving]         = useState(false);
   const [msg, setMsg]               = useState('');
   const [addingNew, setAddingNew]   = useState(false);
@@ -235,17 +236,19 @@ function EmailTemplatesSection() {
 
   async function save() {
     setSaving(true);
-    // Use formRef to avoid stale closure — form state may not reflect latest editor value
+    // Read directly from Jodit editor instance to get the absolute latest content.
+    const latestBodyHtml = joditRef.current?.value ?? formRef.current.body_html;
     const current = formRef.current;
     const supabase = createClient();
     await supabase.from('email_templates').update({
       label:       current.label,
       description: current.description,
       subject:     current.subject,
-      body_html:   current.body_html,
+      body_html:   latestBodyHtml,
       variables:   current.variables,
       updated_at:  new Date().toISOString(),
     }).eq('id', activeIdRef.current);
+    formRef.current = { ...formRef.current, body_html: latestBodyHtml };
     await load();
     setSaving(false); setMsg('Template saved!'); setTimeout(() => setMsg(''), 2000);
   }
@@ -378,6 +381,7 @@ function EmailTemplatesSection() {
             <RichTextEditor
               value={form.body_html}
               editorKey={activeId}
+              joditRef={joditRef}
               onChange={v => { formRef.current = { ...formRef.current, body_html: v }; setForm(f => ({ ...f, body_html: v })); }}
             />
           </div>
@@ -478,6 +482,7 @@ function PolicyDocumentsSection() {
   const activeIdRef = useRef(null);
   const [form, setForm]         = useState({ title: '', content: '' });
   const formRef = useRef({ title: '', content: '' });
+  const joditRef = useRef(null);
   const [saving, setSaving]     = useState(false);
   const [msg, setMsg]           = useState('');
   const [addingDoc, setAddingDoc] = useState(false);
@@ -508,11 +513,15 @@ function PolicyDocumentsSection() {
 
   async function save() {
     setSaving(true);
-    // Use formRef to avoid stale closure — form state may not reflect latest editor value
-    const current = formRef.current;
+    // Read directly from Jodit editor instance to get the absolute latest content.
+    // This avoids the onBlur timing issue where clicking Save doesn't trigger blur first.
+    const latestContent = joditRef.current?.value ?? formRef.current.content;
+    const latestTitle = formRef.current.title;
     const supabase = createClient();
-    const { error } = await supabase.from('policy_documents').update({ title: current.title, content: current.content, updated_at: new Date().toISOString() }).eq('id', activeIdRef.current);
+    const { error } = await supabase.from('policy_documents').update({ title: latestTitle, content: latestContent, updated_at: new Date().toISOString() }).eq('id', activeIdRef.current);
     if (error) { console.error('Policy save error:', error); setSaving(false); return; }
+    // Update formRef with what we saved so subsequent saves are consistent
+    formRef.current = { ...formRef.current, content: latestContent };
     const { data } = await supabase.from('policy_documents').select('id, type, title, is_current').eq('is_current', true).order('type');
     setDocs(data || []);
     setSaving(false); setMsg('Document saved!'); setTimeout(() => setMsg(''), 2000);
@@ -569,6 +578,7 @@ function PolicyDocumentsSection() {
           <RichTextEditor
             key={activeId}
             editorKey={activeId}
+            joditRef={joditRef}
             value={form.content}
             onChange={v => { formRef.current = { ...formRef.current, content: v }; setForm(f => ({ ...f, content: v })); }}
             minHeight={300}
