@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 const DOC_ORDER = ['payment_agreement', 'participant_rules', 'liability_waiver'];
 
@@ -141,7 +142,7 @@ function DocumentCard({ doc, index, total, onScrolled, scrolled, programId }) {
       >
         <div
           style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.75 }}
-          dangerouslySetInnerHTML={{ __html: doc.content }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(doc.content) }}
         />
         {!scrolled && (
           <div style={{

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -109,7 +110,7 @@ function ProgramCard({ program, participants, enrollmentCounts, gradeLevels }) {
             <div style={{ marginBottom: '1.5rem' }}>
               <div
   style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.7 }}
-  dangerouslySetInnerHTML={{ __html: program.description }}
+  dangerouslySetInnerHTML={{ __html: sanitizeHtml(program.description) }}
 />
             </div>
           )}

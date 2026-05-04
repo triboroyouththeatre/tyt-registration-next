@@ -13,6 +13,7 @@
     "@stripe/stripe-js": "^9.3.1",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.1",
+    "isomorphic-dompurify": "^2.26.0",
     "jodit-react": "^5.3.21",
     "next": "16.2.4",
     "react": "19.2.4",

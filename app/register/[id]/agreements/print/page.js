@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 const DOC_TITLES = {
   payment_agreement: 'Registration Fee Policy',
@@ -222,7 +223,7 @@ export default async function AgreementPrintPage({ params, searchParams }) {
 
         <div
           className="doc-content"
-          dangerouslySetInnerHTML={{ __html: doc.content }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(doc.content) }}
         />
 
         <div className="doc-footer">

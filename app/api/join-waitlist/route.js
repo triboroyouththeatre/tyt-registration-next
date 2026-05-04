@@ -5,6 +5,8 @@ import { renderEmail } from '@/lib/email-render';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+const REGISTRATION_STATUS_CANCELLED = '1878c625-8ce3-472c-b6d1-b84fdb04d90b';
+
 export async function POST(request) {
   try {
     // Verify the user is authenticated
@@ -66,12 +68,14 @@ export async function POST(request) {
       }
     }
 
-    // Check if program is actually full (matches register page logic)
+    // Check if program is actually full (matches register page logic).
+    // Filter on status_id directly — UUID compare, no join into the
+    // status lookup table.
     const { data: regPrograms } = await admin
       .from('registration_programs')
-      .select('program_id, registrations!inner(status_id, registration_statuses!inner(label))')
+      .select('program_id, registrations!inner(status_id)')
       .eq('program_id', programId)
-      .neq('registrations.registration_statuses.label', 'Cancelled');
+      .neq('registrations.status_id', REGISTRATION_STATUS_CANCELLED);
 
     const currentEnrollment = regPrograms?.length || 0;
     if (currentEnrollment < program.enrollment_limit) {

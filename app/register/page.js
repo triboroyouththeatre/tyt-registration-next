@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import ProgramList from '@/components/ProgramList';
 
+const REGISTRATION_STATUS_CANCELLED = '1878c625-8ce3-472c-b6d1-b84fdb04d90b';
+
 export default async function RegisterPage() {
   const supabase = await createClient();
 
@@ -14,6 +16,14 @@ export default async function RegisterPage() {
     .select('family_id')
     .eq('id', user.id)
     .single();
+
+  // Defense in depth: the proxy should have already routed admins away and
+  // sent incomplete-onboarding families to /onboarding, but if a profile
+  // somehow lacks a family_id, send the user back to the dashboard rather
+  // than crashing on the participants query below.
+  if (!profile?.family_id) {
+    redirect('/dashboard');
+  }
 
   const { data: participants } = await supabase
     .from('participants')
@@ -36,11 +46,14 @@ export default async function RegisterPage() {
     .eq('is_active', true)
     .order('label');
 
-  // Count current enrollments per program
+  // Count current enrollments per program. Filter directly on the
+  // registration's status_id (UUID compare, no join into the lookup
+  // table) and select only program_id — drastically lighter than
+  // pulling status labels for every row to filter in the client.
   const { data: regPrograms } = await supabase
     .from('registration_programs')
-    .select('program_id, registrations!inner(status_id, registration_statuses!inner(label))')
-    .neq('registrations.registration_statuses.label', 'Cancelled');
+    .select('program_id, registrations!inner(status_id)')
+    .neq('registrations.status_id', REGISTRATION_STATUS_CANCELLED);
 
   const enrollmentCounts = {};
   regPrograms?.forEach(rp => {
