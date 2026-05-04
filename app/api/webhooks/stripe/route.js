@@ -1,7 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import Stripe from 'stripe';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+import { stripe } from '@/lib/stripe';
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -24,8 +22,6 @@ export async function POST(request) {
     console.error('[webhook] Signature verification failed:', err.message);
     return Response.json({ error: 'Invalid signature' }, { status: 400 });
   }
-
-  console.log(`[webhook] Received event: ${event.type}`);
 
   try {
     switch (event.type) {
@@ -138,7 +134,7 @@ export async function POST(request) {
       }
 
       default:
-        console.log(`[webhook] Unhandled event type: ${event.type}`);
+        break;
     }
   } catch (err) {
     console.error('[webhook] Handler error:', err.message);

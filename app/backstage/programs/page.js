@@ -53,10 +53,14 @@ export default async function ProgramsPage({ searchParams }) {
     }
   });
 
+  // Build lookup maps to avoid O(n²) .find() calls inside .map()
+  const sessionMap = Object.fromEntries((sessions || []).map(s => [s.id, s]));
+  const seasonMap  = Object.fromEntries((seasons  || []).map(s => [s.id, s]));
+
   // Enrich programs with session/season
   const enriched = (programs || []).map(p => {
-    const session = sessions?.find(s => s.id === p.session_id);
-    const season  = seasons?.find(s => s.id === session?.season_id);
+    const session = sessionMap[p.session_id];
+    const season  = seasonMap[session?.season_id];
     const enrolled = enrollmentByProgram[p.id] || 0;
     const isFull   = p.enrollment_limit > 0 && enrolled >= p.enrollment_limit;
     const now      = new Date();

@@ -1,7 +1,5 @@
-import Stripe from 'stripe';
+import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const FEE_RATE = 0.05;
 
 export async function POST(request) {

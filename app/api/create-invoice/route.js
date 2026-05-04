@@ -1,7 +1,5 @@
-import Stripe from 'stripe';
+import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const FEE_RATE = 0.05;
 
 export async function POST(request) {
@@ -78,12 +76,10 @@ export async function POST(request) {
     await stripe.invoices.sendInvoice(invoice.id);
 
     // Save invoice ID to each registration record
-    for (const reg of registrations) {
-      await supabase
-        .from('registrations')
-        .update({ stripe_invoice_id: invoice.id })
-        .eq('id', reg.registrationId);
-    }
+    await supabase
+      .from('registrations')
+      .update({ stripe_invoice_id: invoice.id })
+      .in('id', registrations.map(r => r.registrationId));
 
     return Response.json({ invoiceId: invoice.id });
 

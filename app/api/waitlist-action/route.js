@@ -1,12 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
-import Stripe from 'stripe';
+import { stripe } from '@/lib/stripe';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
 import { getFamilyRecipients } from '@/lib/email-recipients';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const resend  = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const REGISTRATION_STATUS_CANCELLED = '1878c625-8ce3-472c-b6d1-b84fdb04d90b';
 const PAYMENT_STATUS_PAID           = '7009f776-f127-4f74-8c48-0efec65316a8';

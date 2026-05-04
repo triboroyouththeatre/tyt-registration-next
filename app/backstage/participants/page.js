@@ -28,9 +28,11 @@ export default async function ParticipantsPage({ searchParams }) {
     .eq('seasons.is_active', true)
     .order('yog');
 
+  const participantIds = (participants || []).map(p => p.id);
   const { data: regCounts } = await supabase
     .from('registrations')
-    .select('participant_id');
+    .select('participant_id')
+    .in('participant_id', participantIds.length > 0 ? participantIds : ['00000000-0000-0000-0000-000000000000']);
 
   const regCountMap = {};
   (regCounts || []).forEach(r => {
