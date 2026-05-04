@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
 function SignupForm() {
@@ -10,13 +8,14 @@ function SignupForm() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function handleSignup(e) {
     e.preventDefault();
     setError('');
+    setErrorCode('');
 
     if (password !== confirm) {
       setError('Passwords do not match.');
@@ -30,17 +29,21 @@ function SignupForm() {
 
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
+    const res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
         emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      }),
     });
 
-    if (error) {
-      setError(error.message);
+    const data = await res.json();
+
+    if (!res.ok) {
+      setError(data.error || 'Something went wrong. Please try again.');
+      setErrorCode(data.code || '');
       setLoading(false);
       return;
     }
@@ -107,7 +110,24 @@ function SignupForm() {
 
   return (
     <form onSubmit={handleSignup}>
-      {error && <div className="tyt-error">{error}</div>}
+      {error && (
+        errorCode === 'already_registered' ? (
+          <div className="tyt-error" style={{ textAlign: 'left' }}>
+            <strong style={{ display: 'block', marginBottom: '0.4rem' }}>
+              {error}
+            </strong>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Please{' '}
+              <a href="/login" style={{ color: 'var(--gold)', textDecoration: 'underline' }}>
+                sign in
+              </a>
+              {' '}to your existing account.
+            </span>
+          </div>
+        ) : (
+          <div className="tyt-error">{error}</div>
+        )
+      )}
 
       <div style={{ marginBottom: '1.25rem' }}>
         <label className="tyt-label">Email Address</label>
