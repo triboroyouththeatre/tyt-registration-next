@@ -1,6 +1,11 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { redirect } from 'next/navigation';
 import { sanitizeHtml } from '@/lib/sanitize';
+
+const admin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const DOC_TITLES = {
   payment_agreement: 'Registration Fee Policy',
@@ -14,8 +19,7 @@ export default async function AgreementPrintPage({ params, searchParams }) {
 
   if (!docType) redirect(`/register/${programId}/agreements`);
 
-  const supabase = await createClient();
-  const { data: doc } = await supabase
+  const { data: doc } = await admin
     .from('policy_documents')
     .select('type, title, content')
     .eq('type', docType)

@@ -50,7 +50,7 @@ export default async function DashboardPage() {
         *,
         participants(first_name, last_name),
         registration_statuses(label),
-        registration_programs(
+        carts(
           programs(
             label,
             sessions(
@@ -103,9 +103,7 @@ export default async function DashboardPage() {
   const currentSeasonDisplay = currentSession?.seasons?.display_name || currentSession?.seasons?.name;
 
   const currentRegistrations = registrations?.filter(r =>
-    r.registration_programs?.some(rp =>
-      rp.programs?.sessions?.seasons?.name === currentSession?.seasons?.name
-    )
+    r.carts?.programs?.sessions?.seasons?.name === currentSession?.seasons?.name
   ) || [];
 
   const pastRegistrations = registrations?.filter(r =>
@@ -350,7 +348,7 @@ export default async function DashboardPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {currentRegistrations.map(r => {
                   const balance = (r.total_fee || 0) - (r.amount_paid || 0);
-                  const programs = r.registration_programs?.map(rp => rp.programs?.label).filter(Boolean);
+                  const programLabel = r.carts?.programs?.label;
                   return (
                     <a key={r.id} href={`/dashboard/registrations/${r.id}`} className="dash-link">
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -358,7 +356,7 @@ export default async function DashboardPage() {
                           {r.participants?.first_name} {r.participants?.last_name}
                         </p>
                         <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {programs?.join(', ') || 'No programs'}
+                          {programLabel || 'No programs'}
                         </p>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -388,9 +386,9 @@ export default async function DashboardPage() {
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {pastRegistrations.map(r => {
-                  const programs = r.registration_programs?.map(rp => rp.programs?.label).filter(Boolean);
-                  const seasonDisplay = r.registration_programs?.[0]?.programs?.sessions?.seasons?.display_name ||
-                                       r.registration_programs?.[0]?.programs?.sessions?.seasons?.name;
+                  const programLabel = r.carts?.programs?.label;
+                  const seasonDisplay = r.carts?.programs?.sessions?.seasons?.display_name ||
+                                       r.carts?.programs?.sessions?.seasons?.name;
                   return (
                     <a key={r.id} href={`/dashboard/registrations/${r.id}`} className="dash-link dash-link-muted">
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -398,7 +396,7 @@ export default async function DashboardPage() {
                           {r.participants?.first_name} {r.participants?.last_name}
                         </p>
                         <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {programs?.join(', ') || 'No programs'}
+                          {programLabel || 'No programs'}
                         </p>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
