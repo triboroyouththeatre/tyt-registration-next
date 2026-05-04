@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 function SignupForm() {
   const [email, setEmail] = useState('');
@@ -182,9 +183,9 @@ function SignupForm() {
         lineHeight: 1.6,
       }}>
         By creating an account you agree to our{' '}
-        <a href="/terms" style={{ color: 'var(--gold)' }}>Terms of Service</a>
+        <Link href="/terms" style={{ color: 'var(--gold)' }}>Terms of Service</Link>
         {' '}and{' '}
-        <a href="/privacy" style={{ color: 'var(--gold)' }}>Privacy Policy</a>.
+        <Link href="/privacy" style={{ color: 'var(--gold)' }}>Privacy Policy</Link>.
       </p>
     </form>
   );
