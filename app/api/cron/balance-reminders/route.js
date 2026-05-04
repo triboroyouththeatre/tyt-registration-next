@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { getFamilyRecipients } from '@/lib/email-recipients';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -38,14 +39,13 @@ export async function GET(request) {
     const { data: registrations, error: regErr } = await admin
       .from('registrations')
       .select(`
-        id, registration_number, amount_paid, total_fee,
+        id, registration_number, amount_paid, total_fee, family_id,
         participants(first_name, last_name, nickname),
         carts!inner(
           programs:programs!inner(label, balance_due_date,
             sessions!inner(name, seasons!inner(display_name, name))
           )
-        ),
-        families!inner(email)
+        )
       `)
       .eq('is_financial_aid_requested', false)
       .gt('total_fee', 0);
@@ -73,19 +73,24 @@ export async function GET(request) {
       return Response.json({ success: true, sent: 0, message: 'No reminders to send today.' });
     }
 
-    // Group by family email so one family with multiple registrations gets one email
-    const byEmail = {};
+    // Group by family_id so one family with multiple registrations
+    // gets a single email digest. Then look up the recipient list for
+    // each family — primary + secondary contacts.
+    const byFamily = {};
     for (const item of toRemind) {
-      const email = item.reg.families?.email;
-      if (!email) continue;
-      if (!byEmail[email]) byEmail[email] = [];
-      byEmail[email].push(item);
+      const fid = item.reg.family_id;
+      if (!fid) continue;
+      if (!byFamily[fid]) byFamily[fid] = [];
+      byFamily[fid].push(item);
     }
 
     let sent = 0;
     const digestLines = [];
 
-    for (const [email, items] of Object.entries(byEmail)) {
+    for (const [familyId, items] of Object.entries(byFamily)) {
+      const recipients = await getFamilyRecipients(admin, familyId);
+      if (recipients.length === 0) continue;
+
       const days = items[0].days;
       const urgency = days === 1 ? 'FINAL REMINDER — Due Tomorrow' :
                       days === 7 ? 'Balance Due in 7 Days' :
@@ -166,13 +171,13 @@ export async function GET(request) {
 
       await resend.emails.send({
         from: 'TYT Family Portal <noreply@triboroyouththeatre.org>',
-        to: email,
+        to: recipients,
         subject: `${urgency} — TYT Registration Balance`,
         html,
       });
 
       sent++;
-      digestLines.push(`${email} — ${items.map(i => `${i.reg.registration_number} (${fmt(i.balance)} due ${fmtDate(i.dueDate)}, ${i.days}d)`).join(', ')}`);
+      digestLines.push(`${recipients.join(', ')} — ${items.map(i => `${i.reg.registration_number} (${fmt(i.balance)} due ${fmtDate(i.dueDate)}, ${i.days}d)`).join(', ')}`);
     }
 
     // Send daily digest to admin

@@ -1,6 +1,7 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
+import { getFamilyRecipients } from '@/lib/email-recipients';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -54,18 +55,14 @@ export async function POST(request) {
     // All registrations should belong to the same family — pull from first
     const familyId = registrations[0].family_id;
 
-    // Get family email
-    const { data: family } = await admin
-      .from('families')
-      .select('email')
-      .eq('id', familyId)
-      .single();
-
-    if (!family?.email) {
-      return Response.json({ error: 'Family email not found' }, { status: 400 });
+    // Get email recipients (primary + secondary contacts)
+    const recipients = await getFamilyRecipients(admin, familyId);
+    if (recipients.length === 0) {
+      return Response.json({ error: 'No email recipients found for family' }, { status: 400 });
     }
 
-    // Get primary guardian name
+    // Get primary guardian name (still salutation only — second parent
+    // gets the same email body addressed to the primary)
     const { data: guardian } = await admin
       .from('contacts')
       .select('first_name, last_name')
@@ -240,7 +237,7 @@ Triboro Youth Theatre \u00B7 <a href="https://triboroyouththeatre.org" style="co
 
     await resend.emails.send({
       from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
-      to:      family.email,
+      to:      recipients,
       bcc:     'admin@triboroyouththeatre.org',
       subject,
       html:    wrappedHtml,

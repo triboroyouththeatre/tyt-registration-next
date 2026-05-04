@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
+import { getFamilyRecipients } from '@/lib/email-recipients';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -118,7 +119,7 @@ export async function POST(request) {
     }
 
     // Send confirmation email
-    const { data: family } = await admin.from('families').select('email').eq('id', familyId).single();
+    const recipients = await getFamilyRecipients(admin, familyId);
     const { data: guardian } = await admin
       .from('contacts')
       .select('first_name, last_name')
@@ -139,7 +140,7 @@ export async function POST(request) {
       .eq('key', 'waitlist_joined')
       .single();
 
-    if (template && family?.email) {
+    if (template && recipients.length > 0) {
       const { subject, html } = renderEmail(template, {
         guardian_name:    guardianName,
         participant_name: participantName,
@@ -148,7 +149,7 @@ export async function POST(request) {
 
       await resend.emails.send({
         from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
-        to:      family.email,
+        to:      recipients,
         bcc:     'admin@triboroyouththeatre.org',
         subject,
         html,

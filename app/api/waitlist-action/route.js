@@ -1,12 +1,25 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
+import Stripe from 'stripe';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
-import crypto from 'node:crypto';
+import { getFamilyRecipients } from '@/lib/email-recipients';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const resend  = new Resend(process.env.RESEND_API_KEY);
 
-const VALID_ACTIONS = ['offer', 'withdraw', 'cancel'];
+const REGISTRATION_STATUS_CANCELLED = '1878c625-8ce3-472c-b6d1-b84fdb04d90b';
+const PAYMENT_STATUS_PAID           = '7009f776-f127-4f74-8c48-0efec65316a8';
+const PAYMENT_TYPE_REFUND           = '4f51031a-e6ec-464a-9aaa-77279bd09ec9';
+
+function fmt(amount) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount) || 0);
+}
+
+function fmtDate(str) {
+  if (!str) return '\u2014';
+  return new Date(str + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
 
 export async function POST(request) {
   try {
@@ -17,156 +30,137 @@ export async function POST(request) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (profile?.role !== 'admin') return Response.json({ error: 'Not authorized' }, { status: 403 });
 
-    const { waitlistId, action } = await request.json();
-    if (!waitlistId || !action) {
-      return Response.json({ error: 'Missing waitlistId or action' }, { status: 400 });
-    }
-    if (!VALID_ACTIONS.includes(action)) {
-      return Response.json({ error: 'Unknown action' }, { status: 400 });
-    }
-
     const admin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    // Fetch the waitlist entry with related data
-    const { data: entry } = await admin
-      .from('waitlist')
+    const { registrationId, refundAmount, releaseSpot } = await request.json();
+
+    if (!registrationId) return Response.json({ error: 'Missing registrationId' }, { status: 400 });
+
+    // Fetch registration with all needed data
+    const { data: reg } = await admin
+      .from('registrations')
       .select(`
-        id, status, family_id, participant_id, program_id, offer_token,
+        id, registration_number, family_id, participant_id,
+        amount_paid, total_fee, stripe_payment_intent_id, stripe_invoice_id,
+        cart_id,
         participants(first_name, last_name, nickname),
-        families(email),
-        programs(id, label)
+        carts(program_id, programs(label, balance_due_date, sessions(seasons(display_name, name))))
       `)
-      .eq('id', waitlistId)
+      .eq('id', registrationId)
       .single();
 
-    if (!entry) return Response.json({ error: 'Waitlist entry not found' }, { status: 404 });
+    if (!reg) return Response.json({ error: 'Registration not found' }, { status: 404 });
 
-    if (action === 'offer') {
-      if (entry.status !== 'waiting') {
-        return Response.json({ error: `Cannot offer a spot to an entry with status "${entry.status}".` }, { status: 400 });
+    const recipients = await getFamilyRecipients(admin, reg.family_id);
+    const { data: guardian } = await admin.from('contacts').select('first_name, last_name').eq('family_id', reg.family_id).eq('priority', 1).single();
+
+    const refundAmt = parseFloat(refundAmount) || 0;
+    const stripeResults = {};
+
+    // 1. Issue Stripe refund if there's a payment intent and refund amount > 0
+    if (reg.stripe_payment_intent_id && refundAmt > 0) {
+      try {
+        const pi = await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id);
+        const chargeId = pi.latest_charge;
+
+        if (chargeId) {
+          const refund = await stripe.refunds.create({
+            charge: chargeId,
+            amount: Math.round(refundAmt * 100),
+          });
+          stripeResults.refund = refund.id;
+          stripeResults.refundStatus = refund.status;
+        }
+      } catch (err) {
+        console.error('[cancel] Stripe refund error:', err.message);
+        stripeResults.refundError = err.message;
       }
-
-      // Generate a one-time offer token
-      const token = crypto.randomUUID();
-
-      const { error: updateErr } = await admin
-        .from('waitlist')
-        .update({
-          status:       'offered',
-          offer_token:  token,
-          notified_at:  new Date().toISOString(),
-        })
-        .eq('id', waitlistId);
-      if (updateErr) throw new Error('Update failed: ' + updateErr.message);
-
-      // Send the offer email
-      await sendOfferEmail(admin, entry, token);
-
-      return Response.json({ success: true, token });
     }
 
-    if (action === 'withdraw') {
-      if (entry.status !== 'offered') {
-        return Response.json({ error: `Cannot withdraw an entry with status "${entry.status}".` }, { status: 400 });
+    // 2. Void outstanding Stripe invoice if exists
+    if (reg.stripe_invoice_id) {
+      try {
+        const invoice = await stripe.invoices.retrieve(reg.stripe_invoice_id);
+        if (invoice.status === 'open') {
+          await stripe.invoices.voidInvoice(reg.stripe_invoice_id);
+          stripeResults.invoiceVoided = true;
+        }
+      } catch (err) {
+        console.error('[cancel] Stripe invoice void error:', err.message);
+        stripeResults.invoiceError = err.message;
       }
-
-      // Silent revert to waiting — no email per spec
-      const { error: updateErr } = await admin
-        .from('waitlist')
-        .update({
-          status:       'waiting',
-          offer_token:  null,
-          notified_at:  null,
-        })
-        .eq('id', waitlistId);
-      if (updateErr) throw new Error('Update failed: ' + updateErr.message);
-
-      return Response.json({ success: true });
     }
 
-    if (action === 'cancel') {
-      if (entry.status === 'accepted') {
-        return Response.json({ error: 'Cannot cancel an entry that has already been accepted.' }, { status: 400 });
-      }
-      if (entry.status === 'cancelled') {
-        return Response.json({ error: 'Entry is already cancelled.' }, { status: 400 });
-      }
+    // 3. Update registration status to Cancelled
+    await admin
+      .from('registrations')
+      .update({
+        status_id:         REGISTRATION_STATUS_CANCELLED,
+        stripe_invoice_id: null,
+        updated_at:        new Date().toISOString(),
+      })
+      .eq('id', registrationId);
 
-      const { error: updateErr } = await admin
-        .from('waitlist')
-        .update({
-          status:       'cancelled',
-          offer_token:  null,
-          notified_at:  null,
-        })
-        .eq('id', waitlistId);
-      if (updateErr) throw new Error('Update failed: ' + updateErr.message);
-
-      return Response.json({ success: true });
+    // 4. Insert refund payment record if refund was issued
+    if (refundAmt > 0) {
+      await admin.from('payments').insert({
+        registration_id:  registrationId,
+        family_id:        reg.family_id,
+        amount:           -refundAmt,
+        status_id:        PAYMENT_STATUS_PAID,
+        type_id:          PAYMENT_TYPE_REFUND,
+        payment_method:   'Stripe Refund',
+        notes:            `Refund issued on cancellation. Stripe refund: ${stripeResults.refund || 'N/A'}`,
+        paid_at:          new Date().toISOString(),
+      });
     }
 
-    // Unreachable
-    return Response.json({ error: 'Unknown action' }, { status: 400 });
+    // 5. Release spot — enrollment counts derive from active registrations,
+    //    so changing status to Cancelled automatically reduces the count.
+
+    // 6. Send cancellation email
+    const participantName = reg.participants?.nickname
+      ? `${reg.participants.nickname} ${reg.participants.last_name}`
+      : `${reg.participants?.first_name} ${reg.participants?.last_name}`;
+    const guardianName = guardian ? `${guardian.first_name} ${guardian.last_name}` : 'Family';
+    const progLabel    = reg.carts?.programs?.label || 'Program';
+
+    const { data: template } = await admin
+      .from('email_templates')
+      .select('subject, body_html')
+      .eq('key', 'cancellation')
+      .single();
+
+    if (template && recipients.length > 0) {
+      const vars = {
+        guardian_name:       guardianName,
+        participant_name:    participantName,
+        program_name:        progLabel,
+        registration_number: reg.registration_number,
+        amount_refunded:     refundAmt > 0 ? fmt(refundAmt) : '$0.00 (no refund issued)',
+      };
+
+      const { subject, html } = renderEmail(template, vars);
+
+      await resend.emails.send({
+        from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
+        to:      recipients,
+        subject,
+        html,
+      });
+    }
+
+    return Response.json({
+      success:    true,
+      stripeResults,
+      refundAmt,
+    });
 
   } catch (err) {
-    console.error('[waitlist-action] error:', err);
+    console.error('[cancel-registration] error:', err.message);
     return Response.json({ error: err.message }, { status: 500 });
   }
-}
-
-async function sendOfferEmail(admin, entry, token) {
-  if (!entry.families?.email) return;
-
-  // Get primary guardian for greeting
-  const { data: guardian } = await admin
-    .from('contacts')
-    .select('first_name, last_name')
-    .eq('family_id', entry.family_id)
-    .eq('priority', 1)
-    .single();
-
-  const guardianName = guardian
-    ? `${guardian.first_name} ${guardian.last_name}`
-    : 'Family';
-
-  const p = entry.participants;
-  const participantName = p?.nickname
-    ? `${p.nickname} ${p.last_name}`
-    : `${p?.first_name || ''} ${p?.last_name || ''}`;
-
-  const programName = entry.programs?.label || 'Program';
-
-  // Build the registration link with token
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://tyt-registration-next.vercel.app';
-  const registrationLink = `${baseUrl}/register/${entry.program_id}?waitlist_token=${token}&participant=${entry.participant_id}`;
-
-  // Fetch the email template
-  const { data: template } = await admin
-    .from('email_templates')
-    .select('subject, body_html')
-    .eq('key', 'waitlist_offer')
-    .single();
-
-  if (!template) {
-    console.error('[waitlist-action] waitlist_offer email template not found');
-    return;
-  }
-
-  const { subject, html } = renderEmail(template, {
-    guardian_name:     guardianName,
-    participant_name:  participantName,
-    program_name:      programName,
-    registration_link: registrationLink,
-  });
-
-  await resend.emails.send({
-    from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
-    to:      entry.families.email,
-    bcc:     'admin@triboroyouththeatre.org',
-    subject,
-    html,
-  });
 }

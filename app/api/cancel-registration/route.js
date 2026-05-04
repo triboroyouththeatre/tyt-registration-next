@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
+import { getFamilyRecipients } from '@/lib/email-recipients';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend  = new Resend(process.env.RESEND_API_KEY);
@@ -53,7 +54,7 @@ export async function POST(request) {
 
     if (!reg) return Response.json({ error: 'Registration not found' }, { status: 404 });
 
-    const { data: family } = await admin.from('families').select('email').eq('id', reg.family_id).single();
+    const recipients = await getFamilyRecipients(admin, reg.family_id);
     const { data: guardian } = await admin.from('contacts').select('first_name, last_name').eq('family_id', reg.family_id).eq('priority', 1).single();
 
     const refundAmt = parseFloat(refundAmount) || 0;
@@ -133,7 +134,7 @@ export async function POST(request) {
       .eq('key', 'cancellation')
       .single();
 
-    if (template && family?.email) {
+    if (template && recipients.length > 0) {
       const vars = {
         guardian_name:       guardianName,
         participant_name:    participantName,
@@ -146,7 +147,7 @@ export async function POST(request) {
 
       await resend.emails.send({
         from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
-        to:      family.email,
+        to:      recipients,
         subject,
         html,
       });
