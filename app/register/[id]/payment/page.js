@@ -7,6 +7,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
 import WizardStepper from '@/components/WizardStepper';
+import { fetchCart, deleteDraft } from '@/lib/drafts';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 const FEE_RATE = 0.05;
@@ -28,21 +29,31 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
   const [error, setError] = useState('');
 
   async function saveRegistrations(stripePaymentIntentId) {
-    const cartItemsWithData = cartItems.map(item => ({
-      ...item,
-      health:     JSON.parse(sessionStorage.getItem(`health_${programId}_${item.participantId}`) || 'null'),
-      agreements: JSON.parse(sessionStorage.getItem(`agreements_${programId}_${item.participantId}`) || '[]'),
-    }));
+    // Re-fetch drafts at save time. This guarantees the data we send to
+    // /api/save-registration matches what's currently on the server, not
+    // what was loaded into the page minutes ago.
+    const drafts = await fetchCart(programId);
+    const draftsByParticipant = {};
+    (drafts || []).forEach(d => { draftsByParticipant[d.participant_id] = d; });
 
-    // Look for a stored waitlist token for any participant in this cart.
-    // In practice, waitlist offers target a single participant — we forward whichever
-    // token we find so save-registration can validate and accept it.
+    const cartItemsWithData = cartItems.map(item => {
+      const d = draftsByParticipant[item.participantId];
+      return {
+        ...item,
+        health:     d?.health_data     || null,
+        agreements: d?.agreements_data || [],
+      };
+    });
+
+    // Look for a stored waitlist token in any draft. In practice waitlist
+    // offers target a single participant — we forward whichever token we
+    // find so save-registration can validate and accept it.
     let waitlistToken = null;
     let waitlistParticipantId = null;
     for (const item of cartItems) {
-      const stored = sessionStorage.getItem(`waitlist_token_${programId}_${item.participantId}`);
-      if (stored) {
-        waitlistToken = stored;
+      const d = draftsByParticipant[item.participantId];
+      if (d?.waitlist_token) {
+        waitlistToken = d.waitlist_token;
         waitlistParticipantId = item.participantId;
         break;
       }
@@ -98,12 +109,10 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
         }).catch(err => console.error('[PaymentForm] Confirmation email failed:', err));
       }
 
-      cartItems.forEach(item => {
-        sessionStorage.removeItem(`health_${programId}_${item.participantId}`);
-        sessionStorage.removeItem(`agreements_${programId}_${item.participantId}`);
-        sessionStorage.removeItem(`waitlist_token_${programId}_${item.participantId}`);
-      });
-      sessionStorage.removeItem(`cart_${programId}`);
+      // Consume all drafts for this family + program — they're now real
+      // registrations. Single round-trip DELETE that the API route handles
+      // by omitting the participantId param.
+      await deleteDraft(programId);
       router.push(`/register/${programId}/confirmation?participant=${cartItems[0]?.participantId}`);
     } else {
       setError('Payment was not completed. Please try again.');
@@ -149,20 +158,59 @@ export default function PaymentPage() {
 
   useEffect(() => {
     if (!programId || programId === 'undefined') { setError('Missing registration parameters.'); setStatus('error'); return; }
-    const rawCart = sessionStorage.getItem(`cart_${programId}`);
-    if (!rawCart) { setError('Your cart is empty. Please start your registration again.'); setStatus('error'); return; }
-    const items = JSON.parse(rawCart);
-    if (!items.length) { setError('Your cart is empty. Please start your registration again.'); setStatus('error'); return; }
-    const totalDeposit = items.reduce((sum, i) => sum + (parseFloat(i.deposit) || 0), 0);
-    const totalFee = items.reduce((sum, i) => sum + (parseFloat(i.fee) || 0), 0);
-    setCartItems(items); setMinPayment(totalDeposit); setMaxPayment(totalFee);
-    setInputValue(totalDeposit.toFixed(2));
-    async function loadProgram() {
+
+    async function load() {
+      // Load drafts for this family + program. We only proceed for kids
+      // who have completed steps 1 and 2 (health + agreements). Anyone
+      // with a draft but missing data shouldn't be charged for.
+      const drafts = await fetchCart(programId);
+      const ready = (drafts || []).filter(d => d.health_data && d.agreements_data);
+      if (!ready.length) {
+        setError('Your cart is empty. Please start your registration again.');
+        setStatus('error');
+        return;
+      }
+
+      // Fetch program once for pricing
       const supabase = createClient();
-      const { data: prog } = await supabase.from('programs').select('balance_due_date').eq('id', programId).single();
-      setProgramData(prog);
+      const { data: prog } = await supabase
+        .from('programs')
+        .select('label, fee, deposit_amount, balance_due_date')
+        .eq('id', programId)
+        .single();
+      if (!prog) { setError('Could not load program details.'); setStatus('error'); return; }
+
+      // Fetch participant names in one round trip
+      const participantIds = ready.map(d => d.participant_id);
+      const { data: parts } = await supabase
+        .from('participants')
+        .select('id, first_name, last_name')
+        .in('id', participantIds);
+      const nameById = {};
+      (parts || []).forEach(p => { nameById[p.id] = `${p.first_name} ${p.last_name}`; });
+
+      // Build cartItems in the same shape the legacy sessionStorage cart used,
+      // so saveRegistrations and create-payment-intent don't need rewrites.
+      const items = ready.map(d => ({
+        participantId:   d.participant_id,
+        participantName: nameById[d.participant_id] || 'Unknown',
+        programId:       d.program_id,
+        programLabel:    prog.label,
+        fee:             parseFloat(prog.fee) || 0,
+        deposit:         parseFloat(prog.deposit_amount) || 0,
+        financialAid:    !!d.financial_aid,
+      }));
+
+      const totalDeposit = items.reduce((sum, i) => sum + (parseFloat(i.deposit) || 0), 0);
+      const totalFee     = items.reduce((sum, i) => sum + (parseFloat(i.fee) || 0), 0);
+
+      setCartItems(items);
+      setMinPayment(totalDeposit);
+      setMaxPayment(totalFee);
+      setInputValue(totalDeposit.toFixed(2));
+      setProgramData({ balance_due_date: prog.balance_due_date });
     }
-    loadProgram();
+    load();
   }, [programId]);
 
   const parsedInput = parseFloat(inputValue) || 0;

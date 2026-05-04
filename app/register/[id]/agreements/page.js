@@ -6,6 +6,7 @@ import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { sanitizeHtml } from '@/lib/sanitize';
 import WizardStepper from '@/components/WizardStepper';
+import { fetchDraft, saveDraft } from '@/lib/drafts';
 
 const DOC_ORDER = ['payment_agreement', 'participant_rules', 'liability_waiver'];
 
@@ -145,10 +146,11 @@ export default function AgreementsPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const [{ data: docs }, { data: p }, { data: prog }] = await Promise.all([
+      const [{ data: docs }, { data: p }, { data: prog }, draft] = await Promise.all([
         supabase.from('policy_documents').select('id, type, content').eq('is_current', true),
         supabase.from('participants').select('first_name, last_name').eq('id', participantId).single(),
         supabase.from('programs').select('label, sessions(name, seasons(display_name, name))').eq('id', programId).single(),
+        fetchDraft(programId, participantId),
       ]);
 
       const ordered = DOC_ORDER.map(type => docs?.find(d => d.type === type)).filter(Boolean);
@@ -156,10 +158,9 @@ export default function AgreementsPage() {
       setParticipant(p);
       setProgram(prog);
 
-      // Pre-fill signature if returning via back button
-      const saved = sessionStorage.getItem(`agreements_${programId}_${participantId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      // Pre-fill signature from existing draft if one exists
+      if (draft?.agreements_data) {
+        const parsed = draft.agreements_data;
         if (parsed[0]?.agreed_by) setSignatureName(parsed[0].agreed_by);
         // Mark all docs as scrolled if previously signed
         const allScrolledState = {};
@@ -213,7 +214,20 @@ export default function AgreementsPage() {
       ip_address:         ipAddress,
       user_agent:         userAgent,
     }));
-    sessionStorage.setItem(`agreements_${programId}_${participantId}`, JSON.stringify(agreementData));
+
+    try {
+      await saveDraft({
+        programId,
+        participantId,
+        current_step:    3,
+        agreements_data: agreementData,
+      });
+    } catch (err) {
+      setError(err.message || 'Could not save progress. Please try again.');
+      setSaving(false);
+      return;
+    }
+
     router.push(`/register/${programId}/review?participant=${participantId}`);
   }
 

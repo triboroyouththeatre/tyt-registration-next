@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
 import WizardStepper from '@/components/WizardStepper';
+import { fetchDraft, fetchCart, saveDraft } from '@/lib/drafts';
 
 const FA_LINK = 'https://drive.google.com/file/d/1T5ReNZm8cCpDLwwxkcL7xG3uDtlK1TFz/view?usp=sharing';
 
@@ -130,18 +131,53 @@ export default function ReviewPage() {
           return ap.yog >= prog.yog_min && ap.yog <= prog.yog_max;
         });
 
-        // Load sessionStorage
-        const rawHealth     = sessionStorage.getItem(`health_${programId}_${participantId}`);
-        const rawAgreements = sessionStorage.getItem(`agreements_${programId}_${participantId}`);
-        const rawCart       = sessionStorage.getItem(`cart_${programId}`);
+        // Load wizard state from server-side drafts.
+        // - currentDraft holds health/agreements for THIS participant
+        // - allDrafts is the implicit cart for this program (all the
+        //   kids the family has wizard-progress for in this program)
+        const [currentDraft, allDrafts] = await Promise.all([
+          fetchDraft(programId, participantId),
+          fetchCart(programId),
+        ]);
+
+        // Build cartItems from drafts that aren't the current participant.
+        // Each cart item is a snapshot of program pricing + the kid's name,
+        // shaped like the legacy sessionStorage cart so payment/save flows
+        // don't need a parallel rewrite.
+        const otherDrafts = (allDrafts || []).filter(d => d.participant_id !== participantId);
+
+        // We need the participant names for cart items — fetch them in one go.
+        const otherParticipantIds = otherDrafts.map(d => d.participant_id);
+        let participantNames = {};
+        if (otherParticipantIds.length > 0) {
+          const { data: others } = await supabase
+            .from('participants')
+            .select('id, first_name, last_name')
+            .in('id', otherParticipantIds);
+          (others || []).forEach(p => {
+            participantNames[p.id] = `${p.first_name} ${p.last_name}`;
+          });
+        }
+
+        const builtCart = otherDrafts.map(d => ({
+          participantId:   d.participant_id,
+          participantName: participantNames[d.participant_id] || 'Unknown',
+          programId:       d.program_id,
+          programLabel:    prog.label,
+          fee:             prog.fee,
+          deposit:         prog.deposit_amount,
+          financialAid:    d.financial_aid || false,
+        }));
 
         setParticipant(participantRes.data);
         setProgram(prog);
         setSeasonDisplay(seasonStr);
         setEligibleSiblings(siblings);
-        setHealthData(rawHealth     ? JSON.parse(rawHealth)     : null);
-        setAgreementData(rawAgreements ? JSON.parse(rawAgreements) : null);
-        setCartItems(rawCart ? JSON.parse(rawCart) : []);
+        setHealthData(currentDraft?.health_data || null);
+        setAgreementData(currentDraft?.agreements_data || null);
+        setCartItems(builtCart);
+        // Restore financial-aid checkbox from draft if previously toggled
+        if (currentDraft?.financial_aid) setFinancialAid(true);
         setStatus('ready');
 
       } catch (err) {
@@ -174,15 +210,29 @@ export default function ReviewPage() {
   const totalDeposit        = allCartItems.reduce((sum, item) => sum + (parseFloat(item.deposit) || 0), 0);
   const addableParticipants = eligibleSiblings.filter(s => !cartItems.some(c => c.participantId === s.id));
 
-  function saveToCart() {
+  async function saveToCart() {
     if (!currentItem) return;
+    // Persist financial_aid choice to this participant's draft.
+    // The draft must already exist (created in step 1) — we're just
+    // updating the financial_aid flag.
+    try {
+      await saveDraft({
+        programId,
+        participantId,
+        current_step: 3,
+        financial_aid: financialAid,
+      });
+    } catch (err) {
+      // Non-fatal — the financialAid choice will fall back to the existing
+      // draft value (false by default) at payment time.
+      console.error('[ReviewPage] saveToCart draft update failed:', err);
+    }
     const newCart = [...otherCartItems, currentItem];
-    sessionStorage.setItem(`cart_${programId}`, JSON.stringify(newCart));
     setCartItems(newCart);
   }
 
-  function handleSaveAndAdd(siblingId) {
-    saveToCart();
+  async function handleSaveAndAdd(siblingId) {
+    await saveToCart();
     router.push(`/register/${programId}?participant=${siblingId}`);
   }
 
@@ -197,7 +247,7 @@ export default function ReviewPage() {
       return;
     }
     setSubmitting(true);
-    saveToCart();
+    await saveToCart();
     router.push(`/register/${programId}/payment?participant=${participantId}`);
   }
 

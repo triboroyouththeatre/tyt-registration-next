@@ -6,6 +6,7 @@ import Link from 'next/link';
 const NAV_TABS = [
   { label: 'Dashboard',     href: '/backstage' },
   { label: 'Registrations', href: '/backstage/registrations' },
+  { label: 'In Progress',   href: '/backstage/in-progress' },
   { label: 'Reports',       href: '/backstage/reports' },
   { label: 'Programs',      href: '/backstage/programs' },
   { label: 'Families',      href: '/backstage/families' },

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
 import WizardStepper from '@/components/WizardStepper';
+import { fetchDraft, saveDraft } from '@/lib/drafts';
 
 function YesNo({ name, value, onChange }) {
   return (
@@ -95,11 +96,13 @@ function HealthForm({ programId }) {
       if (!participantId) return;
       const supabase = createClient();
 
-      // Parallelize all the independent reads.
-      const [{ data: p }, { data: prog }, { data: awards }] = await Promise.all([
+      // Parallelize the independent reads — supabase queries plus the
+      // server-side draft fetch.
+      const [{ data: p }, { data: prog }, { data: awards }, draft] = await Promise.all([
         supabase.from('participants').select('first_name, last_name').eq('id', participantId).single(),
         supabase.from('programs').select('label, sessions(name, seasons(display_name, name))').eq('id', programId).single(),
         supabase.from('award_levels').select('id, label, show_count').order('show_count'),
+        fetchDraft(programId, participantId),
       ]);
       if (cancelled) return;
 
@@ -107,7 +110,7 @@ function HealthForm({ programId }) {
       setProgram(prog);
       setAwardLevels(awards || []);
 
-      // Validate waitlist token if present
+      // Validate waitlist token if present in URL
       if (waitlistToken) {
         const { data: entry } = await supabase
           .from('waitlist')
@@ -121,24 +124,26 @@ function HealthForm({ programId }) {
 
         if (entry) {
           setTokenValid(true);
-          // Persist the token in sessionStorage so it survives across the multi-step flow
-          sessionStorage.setItem(`waitlist_token_${programId}_${participantId}`, waitlistToken);
+          // Persist the token to the draft so subsequent steps inherit it
+          await saveDraft({
+            programId,
+            participantId,
+            current_step: 1,
+            waitlist_token: waitlistToken,
+          });
         } else {
           setTokenError('This offer is no longer available.');
-          // Clear any stale token
-          sessionStorage.removeItem(`waitlist_token_${programId}_${participantId}`);
         }
-      } else {
-        // No token in URL — check sessionStorage in case the user navigated back
-        const storedToken = sessionStorage.getItem(`waitlist_token_${programId}_${participantId}`);
-        if (storedToken) setTokenValid(true);
+      } else if (draft?.waitlist_token) {
+        // No token in URL — check the draft in case the user navigated back
+        setTokenValid(true);
       }
       setTokenChecked(true);
 
-      // Pre-fill from sessionStorage if returning via back button
-      const saved = sessionStorage.getItem(`health_${programId}_${participantId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      // Pre-fill from draft if one exists (silent resume — same UX as the
+      // previous sessionStorage approach but survives tab close & device switch)
+      if (draft?.health_data) {
+        const parsed = draft.health_data;
         setForm({
           award_level_id:            parsed.award_level_id            ?? '',
           academic_flag:             parsed.academic_flag             ?? null,
@@ -207,7 +212,20 @@ function HealthForm({ programId }) {
 
     setSaving(true);
     const healthData = { ...form, participant_id: participantId, program_id: programId, medical_authorization: true };
-    sessionStorage.setItem(`health_${programId}_${participantId}`, JSON.stringify(healthData));
+
+    try {
+      await saveDraft({
+        programId,
+        participantId,
+        current_step:   2,
+        health_data:    healthData,
+        waitlist_token: waitlistToken || undefined,
+      });
+    } catch (err) {
+      setError(err.message || 'Could not save progress. Please try again.');
+      setSaving(false);
+      return;
+    }
 
     // Preserve waitlist_token in URL so the next step can also see it
     const nextUrl = waitlistToken
