@@ -165,7 +165,7 @@ export async function GET(request) {
           ${regRows}
 
           <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:24px 0;text-align:center;">
-            <a href="https://tyt-registration-next.vercel.app/dashboard/payments" 
+            <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payments"
                style="display:inline-block;background:#b40000;color:#fff;text-decoration:none;padding:12px 32px;border-radius:6px;font-weight:bold;font-size:15px;">
               Pay Now
             </a>
