@@ -140,6 +140,42 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Prominent signup CTA — first-time families must create an account */}
+        <div style={{
+          background: 'rgba(224, 191, 92, 0.08)',
+          border: '1px solid var(--gold)',
+          borderRadius: 'var(--radius-md)',
+          padding: '1.25rem 1.5rem',
+          marginBottom: '1.5rem',
+          textAlign: 'center',
+        }}>
+          <p style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1rem',
+            fontWeight: 700,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--text-primary)',
+            marginBottom: '0.85rem',
+          }}>
+            New to TYT?
+          </p>
+          <a href="/signup" className="tyt-btn tyt-btn-gold tyt-btn-full" style={{
+            fontSize: '1rem',
+          }}>
+            Create an Account
+          </a>
+          <p style={{
+            fontFamily: 'var(--font-accent)',
+            fontStyle: 'italic',
+            fontSize: '0.85rem',
+            color: 'var(--text-muted)',
+            marginTop: '0.85rem',
+          }}>
+            First-time families: please sign up before signing in.
+          </p>
+        </div>
+
         <div className="tyt-card">
           <Suspense fallback={
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>
@@ -149,23 +185,6 @@ export default function LoginPage() {
             <LoginForm />
           </Suspense>
         </div>
-
-        <p style={{
-          textAlign: 'center',
-          color: 'var(--text-muted)',
-          fontSize: '0.9rem',
-          marginTop: '1.5rem',
-          fontFamily: 'var(--font-body)',
-        }}>
-          New to TYT?{' '}
-          <a href="/signup" style={{
-            fontFamily: 'var(--font-accent)',
-            fontStyle: 'italic',
-            color: 'var(--gold)',
-          }}>
-            Create an account
-          </a>
-        </p>
 
         <p style={{
           textAlign: 'center',
