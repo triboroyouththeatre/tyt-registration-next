@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { createStripeInvoice } from '@/lib/stripe-invoice';
 
-const REGISTRATION_STATUS_PENDING = '448779d0-8e45-47e1-b653-37d8fb16eb20';
-const PAYMENT_STATUS_PENDING      = '92d4b30c-799e-43ba-83e1-f7989d95f612';
+const REGISTRATION_STATUS_ACTIVE  = 'd3ae5075-819c-41e2-a685-bbfaea5171b1';
+const PAYMENT_STATUS_PAID         = '7009f776-f127-4f74-8c48-0efec65316a8';
 const AWARD_LEVEL_NO_AWARD        = '386e44d8-0a4d-4462-85f1-adaa8231a287';
 const PAYMENT_TYPE_DEPOSIT        = '57347d8e-8b1f-4beb-8bdd-b706fa9bc5a2';
 const PAYMENT_TYPE_FULL           = '78cdca58-6a51-4a89-9f61-ff2eb1d62faf';
@@ -99,7 +99,7 @@ export async function POST(request) {
           family_id:                  familyId,
           participant_id:             item.participantId,
           cart_id:                    cart.id,
-          status_id:                  REGISTRATION_STATUS_PENDING,
+          status_id:                  REGISTRATION_STATUS_ACTIVE,
           award_level_id:             awardLevelId,
           registration_number:        regNum,
           sig_parent:                 agreements[0]?.agreed_by || '',
@@ -162,7 +162,7 @@ export async function POST(request) {
         family_id:                familyId,
         stripe_payment_intent_id: stripePaymentIntentId,
         amount:                   totalCharged / cartItems.length,
-        status_id:                PAYMENT_STATUS_PENDING,
+        status_id:                PAYMENT_STATUS_PAID,
         type_id:                  paymentTypeId,
         paid_at:                  new Date().toISOString(),
       });
