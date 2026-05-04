@@ -158,7 +158,7 @@ export default function LoginPage() {
             color: 'var(--text-primary)',
             marginBottom: '0.85rem',
           }}>
-            New to TYT?
+            First time user?
           </p>
           <a href="/signup" className="tyt-btn tyt-btn-gold tyt-btn-full" style={{
             fontSize: '1rem',
@@ -172,7 +172,7 @@ export default function LoginPage() {
             color: 'var(--text-muted)',
             marginTop: '0.85rem',
           }}>
-            First-time families: please sign up before signing in.
+            First-time families: please create an account before signing in.
           </p>
         </div>
 
