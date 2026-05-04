@@ -312,6 +312,7 @@ async function reloadPayments() {
   const [cancelDone, setCancelDone]     = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
   const [spotReleased, setSpotReleased] = useState(false);
+  const [resending, setResending]       = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -477,6 +478,30 @@ async function reloadPayments() {
     }
   }
 
+  async function resendConfirmation() {
+    if (resending) return;
+    if (!confirm('Resend the registration confirmation email to all family contacts (primary + secondary)?')) return;
+    setResending(true);
+    try {
+      const res = await fetch('/api/send-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationIds: [regId] }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSaveMsg('Error: ' + (data.error || 'Resend failed.'));
+      } else {
+        setSaveMsg('Confirmation email resent.');
+      }
+    } catch (err) {
+      setSaveMsg('Unexpected error while resending confirmation.');
+    } finally {
+      setResending(false);
+      setTimeout(() => setSaveMsg(''), 4000);
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: '3rem', textAlign: 'center', fontFamily: 'var(--font-body)', color: '#9ca3af', fontStyle: 'italic' }}>Loading registration...</div>;
   }
@@ -512,6 +537,20 @@ async function reloadPayments() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              onClick={resendConfirmation}
+              disabled={resending}
+              style={{
+                ...btnSecondary,
+                padding: '0.4rem 0.85rem',
+                fontSize: '0.65rem',
+                opacity: resending ? 0.6 : 1,
+                cursor: resending ? 'wait' : 'pointer',
+              }}
+              title="Send the registration confirmation email to all family contacts"
+            >
+              {resending ? 'Sending…' : '✉ Resend Confirmation'}
+            </button>
             <StatusBadge label={reg.registration_statuses?.label} />
             {reg.is_financial_aid_requested && (
               <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '3px', padding: '0.2rem 0.5rem' }}>FA</span>

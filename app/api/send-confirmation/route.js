@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
@@ -16,6 +17,24 @@ function fmtDate(str) {
 
 export async function POST(request) {
   try {
+    // Authenticate. This route is callable in two legitimate situations:
+    //   1) Post-payment, by the family member who just registered (called
+    //      from the payment page).
+    //   2) From the backstage "Resend Confirmation" admin action.
+    // Either is fine; anything else (an unauthenticated caller, or a
+    // family trying to trigger emails for someone else's registration)
+    // is rejected.
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 });
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, family_id')
+      .eq('id', user.id)
+      .single();
+    const isAdmin = profile?.role === 'admin';
+
     const { registrationIds } = await request.json();
     if (!registrationIds?.length) {
       return Response.json({ error: 'No registration IDs provided' }, { status: 400 });
@@ -54,6 +73,18 @@ export async function POST(request) {
 
     // All registrations should belong to the same family — pull from first
     const familyId = registrations[0].family_id;
+
+    // Authorization: admins always pass. Non-admins must own the family
+    // these registrations belong to. Also enforce that all registrations
+    // in the batch belong to a single family — this route was never meant
+    // to send across families in one call.
+    const allSameFamily = registrations.every(r => r.family_id === familyId);
+    if (!allSameFamily) {
+      return Response.json({ error: 'Registrations span multiple families' }, { status: 400 });
+    }
+    if (!isAdmin && profile?.family_id !== familyId) {
+      return Response.json({ error: 'Not authorized' }, { status: 403 });
+    }
 
     // Get email recipients (primary + secondary contacts)
     const recipients = await getFamilyRecipients(admin, familyId);
