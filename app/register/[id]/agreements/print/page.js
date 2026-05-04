@@ -207,8 +207,8 @@ export default async function AgreementPrintPage({ params, searchParams }) {
       <div className="print-bar">
         <span className="print-bar-title">{title}</span>
         <div className="print-bar-actions">
-          <a href="javascript:history.back()" className="btn-back">← Back</a>
-          <button className="btn-print" onClick="window.print()" suppressHydrationWarning>
+          <a href={`/register/${programId}/agreements`} className="btn-back">← Back</a>
+          <button className="btn-print">
             ⎙ Print / Save as PDF
           </button>
         </div>

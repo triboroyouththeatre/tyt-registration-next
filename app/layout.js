@@ -15,6 +15,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
+        <link rel="icon" href="/images/tyt-logo.png" type="image/png" />
         {supabaseUrl && (
           <>
             <link rel="preconnect" href={supabaseUrl} crossOrigin="anonymous" />
