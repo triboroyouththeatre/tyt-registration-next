@@ -29,14 +29,14 @@ export async function POST(request) {
       }
     }
 
-    const invoiceId = await createStripeInvoice({ stripeCustomerId, registrations });
+    const { invoiceId, invoiceUrl } = await createStripeInvoice({ stripeCustomerId, registrations });
 
     await supabase
       .from('registrations')
-      .update({ stripe_invoice_id: invoiceId })
+      .update({ stripe_invoice_id: invoiceId, stripe_invoice_url: invoiceUrl })
       .in('id', registrations.map(r => r.registrationId));
 
-    return Response.json({ invoiceId });
+    return Response.json({ invoiceId, invoiceUrl });
 
   } catch (err) {
     console.error('[create-invoice] error:', err);

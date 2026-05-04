@@ -50,7 +50,7 @@ export default async function RegistrationDetailPage({ params }) {
     .from('registrations')
     .select(`
       id, registration_number, amount_paid, total_fee,
-      is_financial_aid_requested, registered_at,
+      is_financial_aid_requested, registered_at, stripe_invoice_url,
       participants(first_name, last_name, nickname, yog),
       registration_statuses(label),
       award_levels(label),
@@ -166,6 +166,22 @@ export default async function RegistrationDetailPage({ params }) {
               <Row label="Balance Due" value={fmt(balance)} valueColor="var(--red)" />
             ) : (
               <Row label="Balance Due" value="Paid in full" valueColor="var(--gold)" />
+            )}
+            {balance > 0.01 && reg.stripe_invoice_url && (
+              <a
+                href={reg.stripe_invoice_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'block', marginTop: '1rem',
+                  fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700,
+                  letterSpacing: '0.08em', textTransform: 'uppercase', textDecoration: 'none',
+                  textAlign: 'center', padding: '0.625rem 1rem',
+                  background: 'var(--gold)', color: '#0a0a0a', borderRadius: 'var(--radius-sm)',
+                }}
+              >
+                Pay Balance →
+              </a>
             )}
             {reg.is_financial_aid_requested && (
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#d97706', marginTop: '0.75rem' }}>
