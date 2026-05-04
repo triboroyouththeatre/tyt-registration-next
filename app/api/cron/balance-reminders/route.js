@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
-import { getFamilyRecipients } from '@/lib/email-recipients';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -84,11 +83,28 @@ export async function GET(request) {
       byFamily[fid].push(item);
     }
 
+    // Batch-fetch all contacts for all families in one query instead of N per-family calls
+    const allFamilyIds = Object.keys(byFamily);
+    const { data: allContacts } = await admin
+      .from('contacts')
+      .select('family_id, email, priority')
+      .in('family_id', allFamilyIds)
+      .in('priority', [1, 2])
+      .order('priority');
+
+    const recipientsByFamily = {};
+    (allContacts || []).forEach(c => {
+      const email = c.email?.trim();
+      if (!email) return;
+      if (!recipientsByFamily[c.family_id]) recipientsByFamily[c.family_id] = [];
+      recipientsByFamily[c.family_id].push(email);
+    });
+
     let sent = 0;
     const digestLines = [];
 
     for (const [familyId, items] of Object.entries(byFamily)) {
-      const recipients = await getFamilyRecipients(admin, familyId);
+      const recipients = recipientsByFamily[familyId] || [];
       if (recipients.length === 0) continue;
 
       const days = items[0].days;

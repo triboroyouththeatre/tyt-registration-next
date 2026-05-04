@@ -30,10 +30,11 @@ export default async function FamiliesPage({ searchParams }) {
     .in('id', familyIds.length > 0 ? familyIds : ['00000000-0000-0000-0000-000000000000'])
     .order('email');
 
-  // Get registration counts per family
+  // Get registration counts per family — scoped to the families we already loaded
   const { data: regCounts } = await supabase
     .from('registrations')
-    .select('family_id');
+    .select('family_id')
+    .in('family_id', familyIds.length > 0 ? familyIds : ['00000000-0000-0000-0000-000000000000']);
 
   const regCountMap = {};
   (regCounts || []).forEach(r => {
