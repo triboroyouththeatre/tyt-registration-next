@@ -230,7 +230,7 @@ export default function SignupPage() {
             color: 'var(--text-muted)',
             fontSize: '1rem',
           }}>
-            Join the Triboro Youth Theatre family
+            Join the TYT Family Portal
           </p>
         </div>
 
