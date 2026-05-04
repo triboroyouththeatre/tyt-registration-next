@@ -110,10 +110,6 @@ export default async function DashboardPage() {
     !currentRegistrations.includes(r)
   ) || [];
 
-  const totalOwed = currentRegistrations.reduce((sum, r) =>
-    sum + ((r.total_fee || 0) - (r.amount_paid || 0)), 0
-  );
-
   const offeredEntries = (waitlistEntries || []).filter(w => w.status === 'offered');
   const waitingEntries = (waitlistEntries || []).filter(w => w.status === 'waiting');
 
@@ -224,22 +220,6 @@ export default async function DashboardPage() {
               </div>
             );
           })}
-
-          {/* Balance banner */}
-          {totalOwed > 0 && (
-            <div style={{
-              background: '#1a0a0a', border: '1px solid var(--red)',
-              borderRadius: 'var(--radius-md)', padding: '1.25rem 1.5rem',
-              marginBottom: '2rem', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
-            }}>
-              <div>
-                <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Balance Due</p>
-                <p style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 800, color: 'var(--red)', lineHeight: 1 }}>{formatCurrency(totalOwed)}</p>
-              </div>
-              <a href="/dashboard/pay" className="tyt-btn tyt-btn-primary">Pay Now</a>
-            </div>
-          )}
 
           {/* Registration open banner */}
           {registrationOpen && (
