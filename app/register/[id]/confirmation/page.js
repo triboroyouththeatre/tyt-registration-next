@@ -39,8 +39,6 @@ export default function ConfirmationPage() {
   const [program, setProgram]       = useState(null);
   const [season, setSeason]         = useState('');
   const [gradeLevels, setGradeLevels] = useState([]);
-  const [emailSent, setEmailSent]   = useState(false);
-
   useEffect(() => {
     if (!programId || !participantId) { setStatus('error'); return; }
 
@@ -117,16 +115,6 @@ export default function ConfirmationPage() {
         setSeason(seasonStr);
         setGradeLevels(grades || []);
         setStatus('ready');
-
-        // Send confirmation email — fire and forget
-        if (!emailSent) {
-          setEmailSent(true);
-          fetch('/api/send-confirmation', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ registrationIds: regs.map(r => r.id) }),
-          }).catch(err => console.error('[Confirmation] Email error:', err));
-        }
 
       } catch (err) {
         console.error('[ConfirmationPage] error:', err.message);
