@@ -9,6 +9,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  // First sequential query: we need the family_id before the rest can run.
   const { data: profile } = await supabase
     .from('profiles')
     .select('*, families(*)')
@@ -16,74 +17,86 @@ export default async function DashboardPage() {
     .single();
 
   const family = profile?.families;
+  const familyId = family?.id;
 
-  // Get primary contact for first name
-  const { data: primaryContact } = await supabase
-    .from('contacts')
-    .select('first_name')
-    .eq('family_id', family?.id)
-    .eq('priority', 1)
-    .single();
+  // All remaining queries key off family_id but are independent of each
+  // other — fire them in parallel instead of waiting in series. Cuts
+  // dashboard load time from "sum of 6 queries" to "max of 6 queries".
+  const [
+    { data: primaryContact },
+    { data: participants },
+    { data: registrations },
+    { data: waitlistEntries },
+    { data: activeSessions },
+    { data: openPrograms },
+  ] = await Promise.all([
+    supabase
+      .from('contacts')
+      .select('first_name')
+      .eq('family_id', familyId)
+      .eq('priority', 1)
+      .single(),
 
-  const firstName = primaryContact?.first_name || null;
+    supabase
+      .from('participants')
+      .select('*')
+      .eq('family_id', familyId)
+      .eq('is_active', true)
+      .order('first_name'),
 
-  const { data: participants } = await supabase
-    .from('participants')
-    .select('*')
-    .eq('family_id', family?.id)
-    .eq('is_active', true)
-    .order('first_name');
-
-  const { data: registrations } = await supabase
-    .from('registrations')
-    .select(`
-      *,
-      participants(first_name, last_name),
-      registration_statuses(label),
-      registration_programs(
-        programs(
-          label,
-          sessions(
-            name,
-            seasons(name, display_name)
+    supabase
+      .from('registrations')
+      .select(`
+        *,
+        participants(first_name, last_name),
+        registration_statuses(label),
+        registration_programs(
+          programs(
+            label,
+            sessions(
+              name,
+              seasons(name, display_name)
+            )
           )
         )
-      )
-    `)
-    .eq('family_id', family?.id)
-    .order('registered_at', { ascending: false });
+      `)
+      .eq('family_id', familyId)
+      .order('registered_at', { ascending: false }),
 
-  // Fetch waitlist entries for this family (only active states)
-  // NOTE: select participant_id explicitly so we can build the offer URL
-  const { data: waitlistEntries } = await supabase
-    .from('waitlist')
-    .select(`
-      id, status, offer_token, notified_at, created_at,
-      participant_id,
-      participants(first_name, last_name, nickname),
-      programs(
-        id, label,
-        sessions(name, seasons(name, display_name))
-      )
-    `)
-    .eq('family_id', family?.id)
-    .in('status', ['waiting', 'offered'])
-    .order('created_at', { ascending: false });
+    // Fetch waitlist entries for this family (only active states)
+    // NOTE: select participant_id explicitly so we can build the offer URL
+    supabase
+      .from('waitlist')
+      .select(`
+        id, status, offer_token, notified_at, created_at,
+        participant_id,
+        participants(first_name, last_name, nickname),
+        programs(
+          id, label,
+          sessions(name, seasons(name, display_name))
+        )
+      `)
+      .eq('family_id', familyId)
+      .in('status', ['waiting', 'offered'])
+      .order('created_at', { ascending: false }),
 
-  // Get active sessions with display name
-  const { data: activeSessions } = await supabase
-    .from('sessions')
-    .select('id, name, seasons(name, display_name)')
-    .eq('is_active', true)
-    .limit(1);
+    // Get active sessions with display name
+    supabase
+      .from('sessions')
+      .select('id, name, seasons(name, display_name)')
+      .eq('is_active', true)
+      .limit(1),
 
-  // Check if any programs have registration open
-  const { data: openPrograms } = await supabase
-    .from('programs')
-    .select('id, sessions!inner(is_active)')
-    .eq('is_registration_open', true)
-    .eq('sessions.is_active', true)
-    .limit(1);
+    // Check if any programs have registration open
+    supabase
+      .from('programs')
+      .select('id, sessions!inner(is_active)')
+      .eq('is_registration_open', true)
+      .eq('sessions.is_active', true)
+      .limit(1),
+  ]);
+
+  const firstName = primaryContact?.first_name || null;
 
   const registrationOpen = openPrograms && openPrograms.length > 0;
   const currentSession = activeSessions?.[0];
@@ -165,7 +178,7 @@ export default async function DashboardPage() {
           justifyContent: 'space-between', height: '64px',
           position: 'sticky', top: 0, zIndex: 100,
         }}>
-          <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={48} height={48} style={{ objectFit: 'contain' }} />
+          <Image src="/images/tyt-logo.png" alt="Triboro Youth Theatre" width={48} height={48} style={{ objectFit: 'contain' }} priority />
           <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
             Family Portal
           </span>
