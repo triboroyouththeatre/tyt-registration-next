@@ -46,18 +46,34 @@ export default async function RegisterPage() {
     .eq('is_active', true)
     .order('label');
 
-  // Count current enrollments per program. Filter directly on the
-  // registration's status_id (UUID compare, no join into the lookup
-  // table) and select only program_id — drastically lighter than
-  // pulling status labels for every row to filter in the client.
-  const { data: regPrograms } = await supabase
-    .from('registration_programs')
-    .select('program_id, registrations!inner(status_id)')
-    .neq('registrations.status_id', REGISTRATION_STATUS_CANCELLED);
+  // Count current enrollments per program via the registrations→carts path
+  // (registration_programs is never populated by the registration flow).
+  const { data: allRegs } = await supabase
+    .from('registrations')
+    .select('participant_id, carts!inner(program_id)')
+    .neq('status_id', REGISTRATION_STATUS_CANCELLED);
 
   const enrollmentCounts = {};
-  regPrograms?.forEach(rp => {
-    enrollmentCounts[rp.program_id] = (enrollmentCounts[rp.program_id] || 0) + 1;
+  const enrolledByParticipant = {};
+  allRegs?.forEach(r => {
+    const programId = r.carts?.program_id;
+    if (!programId) return;
+    enrollmentCounts[programId] = (enrollmentCounts[programId] || 0) + 1;
+  });
+
+  // Track which participants from THIS family are already enrolled per program
+  // so ProgramList can disable the Register button for them.
+  const { data: familyRegs } = await supabase
+    .from('registrations')
+    .select('participant_id, carts!inner(program_id)')
+    .eq('family_id', profile.family_id)
+    .neq('status_id', REGISTRATION_STATUS_CANCELLED);
+
+  familyRegs?.forEach(r => {
+    const programId = r.carts?.program_id;
+    if (!programId) return;
+    if (!enrolledByParticipant[r.participant_id]) enrolledByParticipant[r.participant_id] = [];
+    enrolledByParticipant[r.participant_id].push(programId);
   });
 
   const { data: gradeLevels } = await supabase
@@ -111,6 +127,7 @@ export default async function RegisterPage() {
           programs={programs || []}
           participants={participants || []}
           enrollmentCounts={enrollmentCounts}
+          enrolledByParticipant={enrolledByParticipant}
           gradeLevels={gradeLevels || []}
         />
       </main>

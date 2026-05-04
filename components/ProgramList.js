@@ -29,7 +29,7 @@ function isEligible(participant, program) {
   return participant.yog >= program.yog_min && participant.yog <= program.yog_max;
 }
 
-function ProgramCard({ program, participants, enrollmentCounts, gradeLevels }) {
+function ProgramCard({ program, participants, enrollmentCounts, enrolledByParticipant, gradeLevels }) {
   const [expanded, setExpanded] = useState(false);
 
   const enrolled = enrollmentCounts[program.id] || 0;
@@ -152,6 +152,7 @@ function ProgramCard({ program, participants, enrollmentCounts, gradeLevels }) {
                 {participants.map(p => {
                   const eligible = isEligible(p, program);
                   const gradeLabel = getGradeLabel(gradeLevels, p.yog);
+                  const alreadyEnrolled = enrolledByParticipant[p.id]?.includes(program.id);
                   return (
                     <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
                       <div>
@@ -163,8 +164,13 @@ function ProgramCard({ program, participants, enrollmentCounts, gradeLevels }) {
                             Not eligible — {gradeLabel} ({gradeRange} only)
                           </p>
                         )}
+                        {eligible && alreadyEnrolled && (
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#16a34a' }}>
+                            Already registered
+                          </p>
+                        )}
                       </div>
-                      {eligible && (
+                      {eligible && !alreadyEnrolled && (
                         isFull ? (
                           <a
                             href={`/register/${program.id}/waitlist?participant=${p.id}`}
@@ -206,7 +212,7 @@ function ProgramCard({ program, participants, enrollmentCounts, gradeLevels }) {
   );
 }
 
-export default function ProgramList({ programs, participants, enrollmentCounts, gradeLevels }) {
+export default function ProgramList({ programs, participants, enrollmentCounts, enrolledByParticipant, gradeLevels }) {
   const openPrograms = programs.filter(p => p.is_registration_open);
   const closedPrograms = programs.filter(p => !p.is_registration_open);
 
@@ -237,6 +243,7 @@ export default function ProgramList({ programs, participants, enrollmentCounts, 
                 program={program}
                 participants={participants}
                 enrollmentCounts={enrollmentCounts}
+                enrolledByParticipant={enrolledByParticipant}
                 gradeLevels={gradeLevels}
               />
             ))}
