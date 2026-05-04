@@ -11,6 +11,8 @@ const PUBLIC_ROUTES = [
   '/auth/callback',
   '/api',
   '/onboarding',
+  '/terms',
+  '/privacy',
 ];
 
 const ADMIN_ROUTES = ['/admin', '/backstage'];
