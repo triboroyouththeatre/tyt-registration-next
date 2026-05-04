@@ -90,6 +90,17 @@ export async function POST(request) {
       const perParticipantFee  = parseFloat(item.fee);
       const awardLevelId       = health?.award_level_id || AWARD_LEVEL_NO_AWARD;
 
+      // Guard against duplicate registration for this participant + program
+      const { data: dupCheck } = await admin
+        .from('registrations')
+        .select('id, carts!inner(program_id)')
+        .eq('participant_id', item.participantId)
+        .eq('family_id', familyId)
+        .eq('carts.program_id', programId)
+        .neq('status_id', '1878c625-8ce3-472c-b6d1-b84fdb04d90b')
+        .maybeSingle();
+      if (dupCheck) throw new Error(`${item.participantName} is already registered for this program.`);
+
       // Generate registration number
       const { data: regNum, error: regNumErr } = await admin.rpc('generate_registration_number');
       if (regNumErr) throw new Error('Reg number: ' + regNumErr.message);
