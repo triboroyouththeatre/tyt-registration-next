@@ -113,8 +113,8 @@ export default function LoginPage() {
           <Image
             src="/images/tyt-logo.png"
             alt="Triboro Youth Theatre"
-            width={200}
-            height={200}
+            width={100}
+            height={100}
             style={{ objectFit: 'contain' }}
             priority
           />
