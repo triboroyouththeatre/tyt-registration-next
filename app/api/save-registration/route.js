@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { createStripeInvoice } from '@/lib/stripe-invoice';
 
 const REGISTRATION_STATUS_PENDING = '448779d0-8e45-47e1-b653-37d8fb16eb20';
 const PAYMENT_STATUS_PENDING      = '92d4b30c-799e-43ba-83e1-f7989d95f612';
@@ -8,6 +9,14 @@ const PAYMENT_TYPE_DEPOSIT        = '57347d8e-8b1f-4beb-8bdd-b706fa9bc5a2';
 const PAYMENT_TYPE_FULL           = '78cdca58-6a51-4a89-9f61-ff2eb1d62faf';
 
 export async function POST(request) {
+  // Declared outside try so the catch block can clean up partial writes
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+  let cart = null;
+  const createdRegistrations = [];
+
   try {
     // Verify the user is authenticated
     const supabase = await createClient();
@@ -22,12 +31,6 @@ export async function POST(request) {
     if (!familyId) {
       return Response.json({ error: 'No family found' }, { status: 400 });
     }
-
-    // Use admin client to bypass RLS for writes
-    const admin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
 
     const {
       cartItems, programId, stripePaymentIntentId,
@@ -63,7 +66,7 @@ export async function POST(request) {
     const paymentTypeId = isFullPayment ? PAYMENT_TYPE_FULL : PAYMENT_TYPE_DEPOSIT;
 
     // 1. Create cart
-    const { data: cart, error: cartErr } = await admin
+    const { data: cartData, error: cartErr } = await admin
       .from('carts')
       .insert({
         family_id: familyId,
@@ -75,8 +78,7 @@ export async function POST(request) {
       .select('id')
       .single();
     if (cartErr) throw new Error('Cart: ' + cartErr.message);
-
-    const createdRegistrations = [];
+    cart = cartData;
 
     for (const item of cartItems) {
       const health     = item.health     || null;
@@ -192,25 +194,41 @@ export async function POST(request) {
       }
     }
 
-    // 7. Auto-invoice for non-FA families with remaining balance
+    // 7. Auto-invoice for non-FA families with remaining balance.
+    // Called directly (not via HTTP) so auth cookies don't need to be forwarded.
     const nonFARegs = createdRegistrations.filter(
       r => !r.financialAid && (r.totalFee - r.amountPaid) > 0.01
     );
     if (nonFARegs.length > 0 && stripeCustomerId) {
       try {
-        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/create-invoice`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stripeCustomerId, registrations: nonFARegs }),
-        });
+        const invoiceId = await createStripeInvoice({ stripeCustomerId, registrations: nonFARegs });
+        await admin
+          .from('registrations')
+          .update({ stripe_invoice_id: invoiceId })
+          .in('id', nonFARegs.map(r => r.registrationId));
       } catch (err) {
-        console.error('[save-registration] Invoice failed:', err);
+        console.error('[save-registration] Invoice creation failed:', err.message);
       }
     }
 
     return Response.json({ success: true, registrations: createdRegistrations });
 
   } catch (err) {
+    // Clean up any partial writes so orphaned records don't accumulate
+    if (cart?.id) {
+      try {
+        const createdIds = createdRegistrations.map(r => r.registrationId);
+        if (createdIds.length > 0) {
+          await admin.from('payments').delete().in('registration_id', createdIds);
+          await admin.from('agreements').delete().in('registration_id', createdIds);
+          await admin.from('health_records').delete().in('registration_id', createdIds);
+          await admin.from('registrations').delete().in('id', createdIds);
+        }
+        await admin.from('carts').delete().eq('id', cart.id);
+      } catch (cleanupErr) {
+        console.error('[save-registration] cleanup failed:', cleanupErr.message);
+      }
+    }
     console.error('[save-registration] error:', err.message);
     return Response.json({ error: err.message }, { status: 500 });
   }
