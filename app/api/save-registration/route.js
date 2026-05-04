@@ -2,11 +2,12 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { createStripeInvoice } from '@/lib/stripe-invoice';
 
-const REGISTRATION_STATUS_ACTIVE  = 'd3ae5075-819c-41e2-a685-bbfaea5171b1';
-const PAYMENT_STATUS_PENDING      = '92d4b30c-799e-43ba-83e1-f7989d95f612';
-const AWARD_LEVEL_NO_AWARD        = '386e44d8-0a4d-4462-85f1-adaa8231a287';
-const PAYMENT_TYPE_DEPOSIT        = '57347d8e-8b1f-4beb-8bdd-b706fa9bc5a2';
-const PAYMENT_TYPE_FULL           = '78cdca58-6a51-4a89-9f61-ff2eb1d62faf';
+const REGISTRATION_STATUS_ACTIVE    = 'd3ae5075-819c-41e2-a685-bbfaea5171b1';
+const PAYMENT_STATUS_PARTIALLY_PAID = '584f8d02-52d7-48ba-992e-a642cb1347f7';
+const PAYMENT_STATUS_PAID           = '7009f776-f127-4f74-8c48-0efec65316a8';
+const AWARD_LEVEL_NO_AWARD          = '386e44d8-0a4d-4462-85f1-adaa8231a287';
+const PAYMENT_TYPE_DEPOSIT          = '57347d8e-8b1f-4beb-8bdd-b706fa9bc5a2';
+const PAYMENT_TYPE_FULL             = '78cdca58-6a51-4a89-9f61-ff2eb1d62faf';
 
 export async function POST(request) {
   // Declared outside try so the catch block can clean up partial writes
@@ -62,8 +63,9 @@ export async function POST(request) {
       waitlistEntry = entry;
     }
 
-    const isFullPayment = Math.abs(paymentAmount - maxPayment) < 0.01;
-    const paymentTypeId = isFullPayment ? PAYMENT_TYPE_FULL : PAYMENT_TYPE_DEPOSIT;
+    const isFullPayment   = Math.abs(paymentAmount - maxPayment) < 0.01;
+    const paymentTypeId   = isFullPayment ? PAYMENT_TYPE_FULL : PAYMENT_TYPE_DEPOSIT;
+    const paymentStatusId = isFullPayment ? PAYMENT_STATUS_PAID : PAYMENT_STATUS_PARTIALLY_PAID;
 
     // 1. Create cart
     const { data: cartData, error: cartErr } = await admin
@@ -162,7 +164,7 @@ export async function POST(request) {
         family_id:                familyId,
         stripe_payment_intent_id: stripePaymentIntentId,
         amount:                   totalCharged / cartItems.length,
-        status_id:                PAYMENT_STATUS_PENDING,
+        status_id:                paymentStatusId,
         type_id:                  paymentTypeId,
         paid_at:                  new Date().toISOString(),
       });
