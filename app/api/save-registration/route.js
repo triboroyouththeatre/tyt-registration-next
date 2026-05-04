@@ -203,10 +203,10 @@ export async function POST(request) {
     );
     if (nonFARegs.length > 0 && stripeCustomerId) {
       try {
-        const invoiceId = await createStripeInvoice({ stripeCustomerId, registrations: nonFARegs });
+        const { invoiceId, invoiceUrl } = await createStripeInvoice({ stripeCustomerId, registrations: nonFARegs });
         await admin
           .from('registrations')
-          .update({ stripe_invoice_id: invoiceId })
+          .update({ stripe_invoice_id: invoiceId, stripe_invoice_url: invoiceUrl })
           .in('id', nonFARegs.map(r => r.registrationId));
       } catch (err) {
         console.error('[save-registration] Invoice creation failed:', err.message);
