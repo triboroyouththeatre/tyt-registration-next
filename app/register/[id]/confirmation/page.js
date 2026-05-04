@@ -6,17 +6,6 @@ import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
 import Link from 'next/link';
 
-const AWARD_LABELS = {
-  '386e44d8-0a4d-4462-85f1-adaa8231a287': 'No Award',
-  'a502ce6b-bb14-4d74-b46e-48f2a99b9066': '5 Show Award',
-  '7dbcd732-c2d9-4571-ae2f-32ee7cde1a7e': '10 Show Award',
-  '6d2de5d1-55aa-4939-a87f-dbd34cc640db': '15 Show Award',
-  '09479537-63e1-44f5-bd2e-20e84ac66dd1': '20 Show Award',
-  '576fad59-97da-45b8-9b77-5b61641f4127': '25 Show Award',
-  '73278f6a-a642-4ad3-ad4d-d6012b9a0a03': '30 Show Award',
-  '4ee7fa1e-e3e8-485b-bb61-3e8a4949a869': '35 Show Award',
-};
-
 function fmt(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount) || 0);
 }
@@ -102,6 +91,7 @@ export default function ConfirmationPage() {
             id, registration_number, amount_paid, total_fee,
             is_financial_aid_requested, award_level_id,
             participants(first_name, last_name, yog),
+            award_levels(label),
             health_records(
               academic_flag, academic_notes,
               behavioral_flag, behavioral_notes,
@@ -241,7 +231,7 @@ export default function ConfirmationPage() {
                     {/* Program & award */}
                     <div style={{ marginBottom: '1rem' }}>
                       <Row label="Program"      value={program?.label} />
-                      <Row label="Award Level"  value={AWARD_LABELS[reg.award_level_id] || 'No Award'} />
+                      <Row label="Award Level"  value={reg.award_levels?.label || 'No Award'} />
                     </div>
 
                     {/* Health summary */}

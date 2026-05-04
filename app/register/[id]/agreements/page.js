@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { sanitizeHtml } from '@/lib/sanitize';
+import WizardStepper from '@/components/WizardStepper';
 
 const DOC_ORDER = ['payment_agreement', 'participant_rules', 'liability_waiver'];
 
@@ -13,46 +14,6 @@ const DOC_TITLES = {
   participant_rules: 'Participation Policy & Behavior Standards',
   liability_waiver:  'Health & Safety — Liability Waiver and Release of Claims',
 };
-
-const STEP_INDICATOR = [
-  { n: 1, label: 'Health',     done: true,  active: false },
-  { n: 2, label: 'Agreements', done: false, active: true  },
-  { n: 3, label: 'Review',     done: false, active: false },
-  { n: 4, label: 'Payment',    done: false, active: false },
-];
-
-// ─── Step Bar ──────────────────────────────────────────────────────────────────
-
-function StepBar() {
-  return (
-    <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0.75rem 1.5rem' }}>
-      <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {STEP_INDICATOR.map((s, i, arr) => (
-          <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
-              <div style={{
-                width: '28px', height: '28px', borderRadius: '50%',
-                background: s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--bg-hover)',
-                border: `2px solid ${s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--border)'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700,
-                color: s.done ? '#111' : s.active ? '#fff' : 'var(--text-faint)',
-              }}>
-                {s.done ? '✓' : s.n}
-              </div>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: s.done || s.active ? 'var(--text-primary)' : 'var(--text-faint)' }}>
-                {s.label}
-              </span>
-            </div>
-            {i < arr.length - 1 && (
-              <div style={{ width: '40px', height: '2px', background: s.done ? 'var(--gold)' : 'var(--border)', margin: '0 4px', marginBottom: '16px' }} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ─── Print Button ──────────────────────────────────────────────────────────────
 
@@ -287,7 +248,7 @@ export default function AgreementsPage() {
         </a>
       </nav>
 
-      <StepBar />
+      <WizardStepper currentStep={2} />
 
       <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
         <form onSubmit={handleSubmit}>

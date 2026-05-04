@@ -4,17 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Image from 'next/image';
-
-const AWARD_LEVELS = [
-  { id: '386e44d8-0a4d-4462-85f1-adaa8231a287', label: 'No Award',      show_count: 0  },
-  { id: 'a502ce6b-bb14-4d74-b46e-48f2a99b9066', label: '5 Show Award',  show_count: 5  },
-  { id: '7dbcd732-c2d9-4571-ae2f-32ee7cde1a7e', label: '10 Show Award', show_count: 10 },
-  { id: '6d2de5d1-55aa-4939-a87f-dbd34cc640db', label: '15 Show Award', show_count: 15 },
-  { id: '09479537-63e1-44f5-bd2e-20e84ac66dd1', label: '20 Show Award', show_count: 20 },
-  { id: '576fad59-97da-45b8-9b77-5b61641f4127', label: '25 Show Award', show_count: 25 },
-  { id: '73278f6a-a642-4ad3-ad4d-d6012b9a0a03', label: '30 Show Award', show_count: 30 },
-  { id: '4ee7fa1e-e3e8-485b-bb61-3e8a4949a869', label: '35 Show Award', show_count: 35 },
-];
+import WizardStepper from '@/components/WizardStepper';
 
 function YesNo({ name, value, onChange }) {
   return (
@@ -87,6 +77,7 @@ function HealthForm({ programId }) {
   const [error, setError] = useState('');
   const [participant, setParticipant] = useState(null);
   const [program, setProgram] = useState(null);
+  const [awardLevels, setAwardLevels] = useState([]);
   const [medicalAuth, setMedicalAuth] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -96,15 +87,25 @@ function HealthForm({ programId }) {
   const [tokenError, setTokenError] = useState('');
 
   useEffect(() => {
+    // Cancellation guard so we don't setState on an unmounted component
+    // if the user navigates away mid-load.
+    let cancelled = false;
+
     async function load() {
       if (!participantId) return;
       const supabase = createClient();
-      const [{ data: p }, { data: prog }] = await Promise.all([
+
+      // Parallelize all the independent reads.
+      const [{ data: p }, { data: prog }, { data: awards }] = await Promise.all([
         supabase.from('participants').select('first_name, last_name').eq('id', participantId).single(),
         supabase.from('programs').select('label, sessions(name, seasons(display_name, name))').eq('id', programId).single(),
+        supabase.from('award_levels').select('id, label, show_count').order('show_count'),
       ]);
+      if (cancelled) return;
+
       setParticipant(p);
       setProgram(prog);
+      setAwardLevels(awards || []);
 
       // Validate waitlist token if present
       if (waitlistToken) {
@@ -116,24 +117,23 @@ function HealthForm({ programId }) {
           .eq('participant_id', participantId)
           .eq('status', 'offered')
           .maybeSingle();
+        if (cancelled) return;
 
         if (entry) {
           setTokenValid(true);
           // Persist the token in sessionStorage so it survives across the multi-step flow
           sessionStorage.setItem(`waitlist_token_${programId}_${participantId}`, waitlistToken);
         } else {
-          setTokenValid(false);
           setTokenError('This offer is no longer available.');
           // Clear any stale token
           sessionStorage.removeItem(`waitlist_token_${programId}_${participantId}`);
         }
-        setTokenChecked(true);
       } else {
         // No token in URL — check sessionStorage in case the user navigated back
         const storedToken = sessionStorage.getItem(`waitlist_token_${programId}_${participantId}`);
         if (storedToken) setTokenValid(true);
-        setTokenChecked(true);
       }
+      setTokenChecked(true);
 
       // Pre-fill from sessionStorage if returning via back button
       const saved = sessionStorage.getItem(`health_${programId}_${participantId}`);
@@ -160,6 +160,8 @@ function HealthForm({ programId }) {
       }
     }
     load();
+
+    return () => { cancelled = true; };
   }, [participantId, programId, waitlistToken]);
 
   function handleYesNo(name, val) {
@@ -281,7 +283,7 @@ function HealthForm({ programId }) {
           style={{ maxWidth: '280px' }}
         >
           <option value="">— Select an award level —</option>
-          {AWARD_LEVELS.map(level => (
+          {awardLevels.map(level => (
             <option key={level.id} value={level.id}>
               {level.label}
             </option>
@@ -395,26 +397,7 @@ export default function HealthPage() {
         <a href="/register" style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', textDecoration: 'none', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.85rem' }}>← Back</a>
       </nav>
 
-      <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0.75rem 1.5rem' }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {[
-            { n: 1, label: 'Health',     active: true,  done: false },
-            { n: 2, label: 'Agreements', active: false, done: false },
-            { n: 3, label: 'Review',     active: false, done: false },
-            { n: 4, label: 'Payment',    active: false, done: false },
-          ].map((s, i, arr) => (
-            <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: s.active ? 'var(--red)' : 'var(--bg-hover)', border: `2px solid ${s.active ? 'var(--red)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700, color: s.active ? '#fff' : 'var(--text-faint)' }}>
-                  {s.n}
-                </div>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: s.active ? 'var(--text-primary)' : 'var(--text-faint)', whiteSpace: 'nowrap' }}>{s.label}</span>
-              </div>
-              {i < arr.length - 1 && <div style={{ width: '40px', height: '2px', background: 'var(--border)', margin: '0 4px', marginBottom: '16px' }} />}
-            </div>
-          ))}
-        </div>
-      </div>
+      <WizardStepper currentStep={1} />
 
       <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
         <Suspense fallback={<div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem', fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>Loading...</div>}>

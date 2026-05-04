@@ -5,17 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 
-const AWARD_LEVELS = [
-  { id: '386e44d8-0a4d-4462-85f1-adaa8231a287', label: 'No Award' },
-  { id: 'a502ce6b-bb14-4d74-b46e-48f2a99b9066', label: '5 Show Award' },
-  { id: '7dbcd732-c2d9-4571-ae2f-32ee7cde1a7e', label: '10 Show Award' },
-  { id: '6d2de5d1-55aa-4939-a87f-dbd34cc640db', label: '15 Show Award' },
-  { id: '09479537-63e1-44f5-bd2e-20e84ac66dd1', label: '20 Show Award' },
-  { id: '576fad59-97da-45b8-9b77-5b61641f4127', label: '25 Show Award' },
-  { id: '73278f6a-a642-4ad3-ad4d-d6012b9a0a03', label: '30 Show Award' },
-  { id: '4ee7fa1e-e3e8-485b-bb61-3e8a4949a869', label: '35 Show Award' },
-];
-
 function fmt(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount) || 0);
 }
@@ -285,6 +274,7 @@ export default function RegistrationDetailPage() {
   const [program, setProgram]         = useState(null);
   const [gradeLevels, setGradeLevels] = useState([]);
   const [regStatuses, setRegStatuses] = useState([]);
+  const [awardLevels, setAwardLevels] = useState([]);
   const [contacts, setContacts] = useState([]);
 
 async function reloadPayments() {
@@ -403,13 +393,15 @@ async function reloadPayments() {
         setContacts(ct || []);
       }
 
-      // Grade levels + reg statuses
-      const [{ data: gl }, { data: rs }] = await Promise.all([
+      // Grade levels + reg statuses + award levels
+      const [{ data: gl }, { data: rs }, { data: al }] = await Promise.all([
         supabase.from('grade_levels').select('yog, label, seasons!inner(is_active)').eq('seasons.is_active', true),
         supabase.from('registration_statuses').select('id, label').order('label'),
+        supabase.from('award_levels').select('id, label, show_count').order('show_count'),
       ]);
       setGradeLevels(gl || []);
       setRegStatuses(rs || []);
+      setAwardLevels(al || []);
 
       setLoading(false);
     }
@@ -441,7 +433,7 @@ async function reloadPayments() {
     setSaving(true);
     const supabase = createClient();
     await supabase.from('registrations').update({ award_level_id: awardLevelId, updated_at: new Date().toISOString() }).eq('id', regId);
-    setReg(r => ({ ...r, award_level_id: awardLevelId, award_levels: { label: AWARD_LEVELS.find(a => a.id === awardLevelId)?.label } }));
+    setReg(r => ({ ...r, award_level_id: awardLevelId, award_levels: { label: awardLevels.find(a => a.id === awardLevelId)?.label } }));
     setEditingAward(false);
     setSaving(false);
     setSaveMsg('Award level updated.');
@@ -613,7 +605,7 @@ async function reloadPayments() {
               {editingAward ? (
                 <div>
                   <select value={awardLevelId} onChange={e => setAwardLevelId(e.target.value)} style={{ ...inputStyle, marginBottom: '0.5rem' }}>
-                    {AWARD_LEVELS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+                    {awardLevels.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
                   </select>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={saveAward} disabled={saving} style={btnPrimary}>{saving ? 'Saving...' : 'Save'}</button>
@@ -622,7 +614,7 @@ async function reloadPayments() {
                 </div>
               ) : (
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#111', margin: 0 }}>
-                  {AWARD_LEVELS.find(a => a.id === reg.award_level_id)?.label || '—'}
+                  {reg.award_levels?.label || '—'}
                 </p>
               )}
             </div>

@@ -6,6 +6,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
+import WizardStepper from '@/components/WizardStepper';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 const FEE_RATE = 0.05;
@@ -17,32 +18,6 @@ const PAYMENT_TYPE_FULL           = '78cdca58-6a51-4a89-9f61-ff2eb1d62faf';
 
 function fmt(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount) || 0);
-}
-
-function StepBar() {
-  const steps = [
-    { n: 1, label: 'Health',     done: true,  active: false },
-    { n: 2, label: 'Agreements', done: true,  active: false },
-    { n: 3, label: 'Review',     done: true,  active: false },
-    { n: 4, label: 'Payment',    done: false, active: true  },
-  ];
-  return (
-    <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0.75rem 1.5rem' }}>
-      <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {steps.map((s, i) => (
-          <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
-              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--bg-hover)', border: `2px solid ${s.done ? 'var(--gold)' : s.active ? 'var(--red)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 700, color: s.done ? '#111' : s.active ? '#fff' : 'var(--text-faint)' }}>
-                {s.done ? '✓' : s.n}
-              </div>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: s.done || s.active ? 'var(--text-primary)' : 'var(--text-faint)' }}>{s.label}</span>
-            </div>
-            {i < steps.length - 1 && <div style={{ width: '40px', height: '2px', background: s.done ? 'var(--gold)' : 'var(--border)', margin: '0 4px', marginBottom: '16px' }} />}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function PaymentForm({ cartItems, programId, participantId, paymentAmount, totalCharged, stripeCustomerId, programData, maxPayment }) {
@@ -227,7 +202,7 @@ export default function PaymentPage() {
         <div style={{ width: '80px' }} />
       </nav>
 
-      <StepBar />
+      <WizardStepper currentStep={4} />
 
       <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
 
