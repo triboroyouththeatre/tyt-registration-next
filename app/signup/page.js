@@ -33,11 +33,7 @@ function SignupForm() {
     const res = await fetch('/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        password,
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      }),
+      body: JSON.stringify({ email, password }),
     });
 
     const data = await res.json();
@@ -49,64 +45,8 @@ function SignupForm() {
       return;
     }
 
-    setSuccess(true);
-    setLoading(false);
-  }
-
-  if (success) {
-    return (
-      <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-        <div style={{
-          fontSize: '3rem',
-          marginBottom: '1rem',
-        }}>
-          ✉️
-        </div>
-        <h2 style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: '1.6rem',
-          fontWeight: 700,
-          letterSpacing: '0.05em',
-          textTransform: 'uppercase',
-          marginBottom: '0.75rem',
-        }}>
-          Check Your Email
-        </h2>
-        <p style={{
-          fontFamily: 'var(--font-accent)',
-          fontStyle: 'italic',
-          color: 'var(--text-muted)',
-          fontSize: '0.95rem',
-          lineHeight: 1.7,
-          marginBottom: '1.5rem',
-        }}>
-          We sent a confirmation link to <strong style={{ color: 'var(--gold)' }}>{email}</strong>.
-          Please click the link to activate your account before signing in.
-        </p>
-        <p style={{
-          fontFamily: 'var(--font-body)',
-          color: 'var(--text-faint)',
-          fontSize: '0.8rem',
-        }}>
-          Didn&apos;t receive it? Check your spam folder or{' '}
-          <button
-            onClick={() => setSuccess(false)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--gold)',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.8rem',
-              padding: 0,
-              textDecoration: 'underline',
-            }}
-          >
-            try again
-          </button>.
-        </p>
-      </div>
-    );
+    // Redirect straight to login — no email confirmation step
+    window.location.href = '/login';
   }
 
   return (
