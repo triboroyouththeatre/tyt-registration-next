@@ -71,8 +71,7 @@ export default async function RegistrationsPage({ searchParams }) {
       amount_paid, total_fee, is_financial_aid_requested,
       cart_id,
       participants(id, first_name, last_name, nickname, yog),
-      registration_statuses(id, label),
-      payments(status_id, payment_statuses(label))
+      registration_statuses(id, label)
     `)
     .order('registered_at', { ascending: false });
 
@@ -81,11 +80,22 @@ export default async function RegistrationsPage({ searchParams }) {
   const cartProgramMap = {};
   (carts || []).forEach(c => { if (c.id && c.program_id) cartProgramMap[c.id] = c.program_id; });
 
+  // Compute the effective payment status from amounts rather than reading
+  // from individual payment rows (whose statuses reflect the type of that
+  // payment, not the overall registration balance).
+  function effectivePayStatus(reg) {
+    const balance = (parseFloat(reg.total_fee) || 0) - (parseFloat(reg.amount_paid) || 0);
+    const paid    = parseFloat(reg.amount_paid) || 0;
+    if (balance <= 0.01) return 'Paid';
+    if (paid > 0)        return 'Partially Paid';
+    return 'Unpaid';
+  }
+
   // Apply filters
   let filtered = (registrations || []).filter(r => {
     const progId    = r.cart_id ? cartProgramMap[r.cart_id] : null;
     const regStatus = r.registration_statuses?.label;
-    const payStatus = r.payments?.[0]?.payment_statuses?.label;
+    const payStatus = effectivePayStatus(r);
 
     if (filterProgram   && progId    !== filterProgram)   return false;
     if (filterRegStatus && regStatus !== filterRegStatus) return false;
@@ -96,17 +106,17 @@ export default async function RegistrationsPage({ searchParams }) {
   // Status summary counts (from filtered set)
   const summary = {
     active: 0, pending: 0, cancelled: 0,
-    paid: 0, payPending: 0, overdue: 0, fa: 0,
+    paid: 0, partiallyPaid: 0, unpaid: 0, fa: 0,
   };
   filtered.forEach(r => {
     const reg = r.registration_statuses?.label;
-    const pay = r.payments?.[0]?.payment_statuses?.label;
-    if (reg === 'Active')    summary.active++;
-    if (reg === 'Pending')   summary.pending++;
-    if (reg === 'Cancelled') summary.cancelled++;
-    if (pay === 'Paid')      summary.paid++;
-    if (pay === 'Pending')   summary.payPending++;
-    if (pay === 'Overdue')   summary.overdue++;
+    const pay = effectivePayStatus(r);
+    if (reg === 'Active')         summary.active++;
+    if (reg === 'Pending')        summary.pending++;
+    if (reg === 'Cancelled')      summary.cancelled++;
+    if (pay === 'Paid')           summary.paid++;
+    if (pay === 'Partially Paid') summary.partiallyPaid++;
+    if (pay === 'Unpaid')         summary.unpaid++;
     if (r.is_financial_aid_requested) summary.fa++;
   });
 
@@ -155,9 +165,9 @@ export default async function RegistrationsPage({ searchParams }) {
           { label: 'Pending',   value: summary.pending,    color: '#d97706' },
           { label: 'Cancelled', value: summary.cancelled,  color: '#b40000' },
           { label: '|', value: null },
-          { label: 'Paid',      value: summary.paid,       color: '#16a34a' },
-          { label: 'Pay Pending', value: summary.payPending, color: '#d97706' },
-          { label: 'Overdue',   value: summary.overdue,    color: '#b40000' },
+          { label: 'Paid',    value: summary.paid,          color: '#16a34a' },
+          { label: 'Partial', value: summary.partiallyPaid, color: '#d97706' },
+          { label: 'Unpaid',  value: summary.unpaid,        color: '#b40000' },
           { label: '|', value: null },
           { label: 'Fin. Aid',  value: summary.fa,         color: '#7c3aed' },
         ].map((s, i) => s.value === null ? (
@@ -230,7 +240,7 @@ export default async function RegistrationsPage({ searchParams }) {
           const progId    = reg.cart_id ? cartProgramMap[reg.cart_id] : null;
           const progLabel = programs?.find(pr => pr.id === progId)?.label || '—';
           const regStatus = reg.registration_statuses?.label || 'Pending';
-          const payStatus = reg.payments?.[0]?.payment_statuses?.label || 'Pending';
+          const payStatus = effectivePayStatus(reg);
           const balance   = (parseFloat(reg.total_fee) || 0) - (parseFloat(reg.amount_paid) || 0);
 
           return (
