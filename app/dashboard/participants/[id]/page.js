@@ -65,12 +65,12 @@ function ParticipantDetail() {
             award_level_id,
             award_levels(label),
             registration_statuses(label),
-            registration_programs(
+            carts(
               programs(
                 label,
                 sessions(
                   name,
-                  seasons(name)
+                  seasons(name, display_name)
                 )
               )
             )
@@ -224,7 +224,8 @@ function ParticipantDetail() {
 
   // Group registrations by season
   const regsBySeason = registrations.reduce((acc, r) => {
-    const season = r.registration_programs?.[0]?.programs?.sessions?.seasons?.name || 'Unknown';
+    const seasons = r.carts?.programs?.sessions?.seasons;
+    const season = seasons?.display_name || seasons?.name || 'Unknown';
     if (!acc[season]) acc[season] = [];
     acc[season].push(r);
     return acc;
@@ -519,7 +520,8 @@ function ParticipantDetail() {
                   Season {season}
                 </p>
                 {regs.map(r => {
-                  const programs = r.registration_programs?.map(rp => rp.programs?.label).filter(Boolean);
+                  const programLabel = r.carts?.programs?.label;
+                  const awardLabel = r.award_levels?.label || 'No Award';
                   return (
                     <div key={r.id} style={{
                       paddingBottom: '0.75rem',
@@ -529,29 +531,27 @@ function ParticipantDetail() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                         <div>
                           <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
-                            {programs?.join(', ') || 'No programs'}
+                            {programLabel || 'No program'}
                           </p>
                           <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)' }}>
                             #{r.registration_number} · {r.registration_statuses?.label}
                           </p>
                         </div>
-                        {r.award_levels?.label && (
-                          <span style={{
-                            fontFamily: 'var(--font-display)',
-                            fontSize: '0.7rem',
-                            fontWeight: 600,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: 'var(--gold)',
-                            border: '1px solid var(--gold)',
-                            borderRadius: '3px',
-                            padding: '0.2rem 0.5rem',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                          }}>
-                            {r.award_levels.label}
-                          </span>
-                        )}
+                        <span style={{
+                          fontFamily: 'var(--font-display)',
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: 'var(--gold)',
+                          border: '1px solid var(--gold)',
+                          borderRadius: '3px',
+                          padding: '0.2rem 0.5rem',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                        }}>
+                          {awardLabel}
+                        </span>
                       </div>
                     </div>
                   );
