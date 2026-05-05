@@ -379,6 +379,7 @@ function EmailTemplatesSection() {
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Email Body</label>
             <RichTextEditor
+              key={activeId}
               value={form.body_html}
               editorKey={activeId}
               joditRef={joditRef}
