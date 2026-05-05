@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
-import LogoutButton from '@/components/LogoutButton';
 
 function fmt(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount) || 0);
@@ -126,14 +125,12 @@ export default async function RegistrationDetailPage({ params }) {
           <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
             Registration
           </span>
-          <LogoutButton />
+          <a href="/dashboard" style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', textDecoration: 'none', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.85rem' }}>
+            ← Back
+          </a>
         </nav>
 
         <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
-
-          <a href="/dashboard" style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1.5rem' }}>
-            ← Dashboard
-          </a>
 
           {/* Header */}
           <div style={{ marginBottom: '1.5rem' }}>
