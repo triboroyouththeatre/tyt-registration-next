@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { validateContacts } from '@/lib/contact-validation';
+import { fmtPhone } from '@/lib/format';
 import Image from 'next/image';
 
 const CONTACT_SLOTS = [
@@ -118,7 +119,7 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved, allConta
             {[
               { label: 'Name', value: `${contact.first_name} ${contact.last_name}` },
               slot.isGuardian && { label: 'Relationship', value: relationship?.label || '—' },
-              { label: 'Phone', value: contact.phone || '—' },
+              { label: 'Phone', value: fmtPhone(contact.phone) },
               slot.isGuardian && { label: 'Email', value: contact.email || '—' },
             ].filter(Boolean).map(item => (
               <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>

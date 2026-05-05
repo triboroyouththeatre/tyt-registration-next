@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { fmtPhone } from '@/lib/format';
 
 const labelStyle = { fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: '0.3rem' };
 const inputStyle = { fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#111', border: '1px solid #d1d5db', borderRadius: '6px', padding: '0.5rem 0.75rem', width: '100%', boxSizing: 'border-box', background: '#fff' };
@@ -210,7 +211,7 @@ export default function ParticipantDetailPage() {
                 <Row label="Date of Birth" value={fmtDateOnly(participant.date_of_birth)} />
                 <Row label="Grade"         value={getGrade(participant.yog)} />
                 <Row label="Gender"        value={participant.genders?.label} />
-                {participant.phone && <Row label="Phone" value={participant.phone} />}
+                {participant.phone && <Row label="Phone" value={fmtPhone(participant.phone)} />}
                 {participant.email && <Row label="Email" value={participant.email} />}
                 <Row label="Status" value={participant.is_active ? 'Active' : 'Inactive'} />
               </div>

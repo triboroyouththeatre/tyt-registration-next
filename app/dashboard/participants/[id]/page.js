@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
+import { fmtPhone } from '@/lib/format';
 
 function ParticipantDetail() {
   const router = useRouter();
@@ -316,7 +317,7 @@ function ParticipantDetail() {
               { label: 'Date of Birth', value: participant.date_of_birth ? new Date(participant.date_of_birth + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—' },
               { label: 'Year of Graduation', value: participant.yog ? `${participant.yog} (${yogLabel})` : '—' },
               { label: 'Gender', value: participant.genders?.label || '—' },
-              { label: 'Mobile', value: participant.phone || '—' },
+              { label: 'Mobile', value: fmtPhone(participant.phone) },
               { label: 'Email', value: participant.email || '—' },
             ].map((item, i, arr) => (
               <div

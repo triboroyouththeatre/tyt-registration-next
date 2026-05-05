@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { fmtPhone } from '@/lib/format';
 
 const STEP_LABELS = {
   1: 'Health',
@@ -180,7 +181,7 @@ export default async function InProgressRegistrations() {
                   )}
                   {r.contactPhone && (
                     <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                      {r.contactPhone}
+                      {fmtPhone(r.contactPhone)}
                     </div>
                   )}
                 </td>
