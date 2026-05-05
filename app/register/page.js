@@ -46,18 +46,19 @@ export default async function RegisterPage() {
     .eq('is_active', true)
     .order('label');
 
-  // Count current enrollments per program. Filter directly on the
-  // registration's status_id (UUID compare, no join into the lookup
-  // table) and select only program_id — drastically lighter than
-  // pulling status labels for every row to filter in the client.
-  const { data: regPrograms } = await supabase
-    .from('registration_programs')
-    .select('program_id, registrations!inner(status_id)')
-    .neq('registrations.status_id', REGISTRATION_STATUS_CANCELLED);
+  // Count current enrollments per program via carts, which holds the
+  // program_id. registration_programs is not used by this app.
+  const { data: enrolledCarts } = await supabase
+    .from('registrations')
+    .select('cart_id, carts!inner(program_id)')
+    .neq('status_id', REGISTRATION_STATUS_CANCELLED);
 
   const enrollmentCounts = {};
-  regPrograms?.forEach(rp => {
-    enrollmentCounts[rp.program_id] = (enrollmentCounts[rp.program_id] || 0) + 1;
+  enrolledCarts?.forEach(r => {
+    const programId = r.carts?.program_id;
+    if (programId) {
+      enrollmentCounts[programId] = (enrollmentCounts[programId] || 0) + 1;
+    }
   });
 
   const { data: gradeLevels } = await supabase
