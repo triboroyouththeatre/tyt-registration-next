@@ -199,7 +199,7 @@ export default function PaymentPage() {
       const supabase = createClient();
       const { data: prog } = await supabase
         .from('programs')
-        .select('label, fee, deposit_amount, balance_due_date')
+        .select('label, fee, costume_fee, other_fee, deposit_amount, balance_due_date')
         .eq('id', programId)
         .single();
       if (!prog) { setError('Could not load program details.'); setStatus('error'); return; }
@@ -220,7 +220,7 @@ export default function PaymentPage() {
         participantName: nameById[d.participant_id] || 'Unknown',
         programId:       d.program_id,
         programLabel:    prog.label,
-        fee:             parseFloat(prog.fee) || 0,
+        fee:             (parseFloat(prog.fee) || 0) + (parseFloat(prog.costume_fee) || 0) + (parseFloat(prog.other_fee) || 0),
         deposit:         parseFloat(prog.deposit_amount) || 0,
         financialAid:    !!d.financial_aid,
       }));
