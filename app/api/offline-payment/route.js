@@ -119,8 +119,11 @@ export async function POST(request) {
             // Void the invoice — no Stripe payment needed
             await stripe.invoices.voidInvoice(reg.stripe_invoice_id);
             stripeAction = 'voided';
-            // Clear the invoice ID from registration
-            await admin.from('registrations').update({ stripe_invoice_id: null }).eq('id', registrationId);
+            // Clear invoice fields so the Pay Balance button disappears
+            await admin.from('registrations').update({
+              stripe_invoice_id:  null,
+              stripe_invoice_url: null,
+            }).eq('id', registrationId);
           } else {
             // Partial payment — void old invoice and create new one for remaining balance
             await stripe.invoices.voidInvoice(reg.stripe_invoice_id);
@@ -128,32 +131,43 @@ export async function POST(request) {
             // Get Stripe customer ID
             const { data: fam } = await admin.from('families').select('stripe_customer_id').eq('id', reg.family_id).single();
             if (fam?.stripe_customer_id && newBalance > 0) {
-              const progLabel    = reg.carts?.programs?.label || 'Program Balance';
+              const progLabel       = reg.carts?.programs?.label || 'Program Balance';
+              const balanceDueDate  = reg.carts?.programs?.balance_due_date || null;
               const participantName = reg.participants?.nickname
                 ? `${reg.participants.nickname} ${reg.participants.last_name}`
                 : `${reg.participants?.first_name} ${reg.participants?.last_name}`;
 
+              const dueDateUnix = balanceDueDate
+                ? Math.floor(new Date(balanceDueDate + 'T00:00:00').getTime() / 1000)
+                : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+
               // Create new invoice for remaining balance (no processing fee for offline)
               const newInvoice = await stripe.invoices.create({
-                customer:         fam.stripe_customer_id,
-                auto_advance:     false,
+                customer:          fam.stripe_customer_id,
+                auto_advance:      false,
                 collection_method: 'send_invoice',
-                days_until_due:   30,
-                description:      `Remaining balance \u2014 ${progLabel} (${participantName})`,
+                description:       `Remaining balance \u2014 ${progLabel} (${participantName})`,
               });
 
               await stripe.invoiceItems.create({
-                customer:  fam.stripe_customer_id,
-                invoice:   newInvoice.id,
-                amount:    Math.round(newBalance * 100),
-                currency:  'usd',
+                customer:    fam.stripe_customer_id,
+                invoice:     newInvoice.id,
+                amount:      Math.round(newBalance * 100),
+                currency:    'usd',
                 description: `Remaining balance \u2014 ${progLabel} (${participantName})`,
               });
 
-              await stripe.invoices.finalizeInvoice(newInvoice.id);
+              // Set due date before finalizing
+              await stripe.invoices.update(newInvoice.id, { due_date: dueDateUnix });
 
-              // Update registration with new invoice ID
-              await admin.from('registrations').update({ stripe_invoice_id: newInvoice.id }).eq('id', registrationId);
+              const finalized = await stripe.invoices.finalizeInvoice(newInvoice.id, { auto_advance: false });
+              await stripe.invoices.sendInvoice(newInvoice.id);
+
+              // Save new invoice ID and URL so the Pay Balance button stays current
+              await admin.from('registrations').update({
+                stripe_invoice_id:  newInvoice.id,
+                stripe_invoice_url: finalized.hosted_invoice_url,
+              }).eq('id', registrationId);
               stripeAction = 'updated';
             }
           }
