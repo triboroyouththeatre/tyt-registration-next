@@ -31,15 +31,24 @@ export async function POST(request) {
         const pi = event.data.object;
         const paymentIntentId = pi.id;
 
-        // Update payment record to Paid
-        const { error: payErr } = await admin
-          .from('payments')
-          .update({ status_id: PAYMENT_STATUS_PAID })
+        // This webhook can arrive before save-registration has finished
+        // writing its rows. If no registration exists yet, return 200 and
+        // do nothing — save-registration will insert with the correct status
+        // (PAID for full payments, PARTIALLY_PAID for deposits). Returning
+        // 200 here prevents Stripe from retrying unnecessarily.
+        const { data: regs } = await admin
+          .from('registrations')
+          .select('id')
           .eq('stripe_payment_intent_id', paymentIntentId);
 
-        if (payErr) console.error('[webhook] Payment update failed:', payErr.message);
+        if (!regs || regs.length === 0) {
+          console.log(`[webhook] payment_intent.succeeded: rows not yet written for ${paymentIntentId} — save-registration will handle status`);
+          break;
+        }
 
-        // Update registration status to Active
+        // Rows exist: save-registration has already run and set the correct
+        // payment status (PAID for full, PARTIALLY_PAID for deposits).
+        // Do NOT touch payments.status_id — only confirm registration is Active.
         const { error: regErr } = await admin
           .from('registrations')
           .update({
