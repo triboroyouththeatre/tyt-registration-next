@@ -62,6 +62,30 @@ export async function POST(request) {
     const isFullPayment = Math.abs(paymentAmount - maxPayment) < 0.01;
     const paymentTypeId = isFullPayment ? PAYMENT_TYPE_FULL : PAYMENT_TYPE_DEPOSIT;
 
+    // Idempotency guard — if a cart already exists for this payment intent
+    // (e.g. the user's network dropped after Stripe confirmed but before the
+    // DB write finished and they retried), return the existing registrations
+    // rather than creating duplicates.
+    const { data: existingCart } = await admin
+      .from('carts')
+      .select('id, registrations(id, participant_id)')
+      .eq('stripe_payment_intent_id', stripePaymentIntentId)
+      .maybeSingle();
+
+    if (existingCart) {
+      console.log('[save-registration] Idempotent replay detected for PI:', stripePaymentIntentId);
+      const existingRegs = (existingCart.registrations || []).map(r => ({
+        registrationId:  r.id,
+        participantName: cartItems.find(i => i.participantId === r.participant_id)?.participantName || '',
+        programLabel:    cartItems[0]?.programLabel || '',
+        totalFee:        parseFloat(cartItems[0]?.fee) || 0,
+        amountPaid:      paymentAmount / cartItems.length,
+        financialAid:    false,
+        balanceDueDate:  programData?.balance_due_date || null,
+      }));
+      return Response.json({ success: true, registrations: existingRegs });
+    }
+
     // 1. Create cart
     const { data: cart, error: cartErr } = await admin
       .from('carts')

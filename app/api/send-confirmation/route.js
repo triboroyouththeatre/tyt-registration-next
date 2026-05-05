@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
@@ -20,8 +21,43 @@ export async function POST(request) {
       return Response.json({ error: 'No registration IDs provided' }, { status: 400 });
     }
 
-    // Use service role client — this route is called from the post-payment flow
-    // and needs to read across tables that may have RLS restrictions for the user.
+    // Verify the caller is authenticated and owns the registrations they're
+    // requesting a confirmation for. Admins may send for any family.
+    const supabase = await createClient();
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      return Response.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('family_id, role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) {
+      return Response.json({ error: 'Profile not found' }, { status: 403 });
+    }
+
+    // Non-admins may only request confirmations for their own family's registrations
+    if (profile.role !== 'admin') {
+      const admin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+      const { data: regs } = await admin
+        .from('registrations')
+        .select('id, family_id')
+        .in('id', registrationIds);
+
+      const allOwned = (regs || []).every(r => r.family_id === profile.family_id);
+      if (!allOwned) {
+        return Response.json({ error: 'Not authorized' }, { status: 403 });
+      }
+    }
+
+    // Use service role client — this route needs to read across tables that
+    // may have RLS restrictions for the user.
     const admin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY

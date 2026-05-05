@@ -68,16 +68,16 @@ export async function POST(request) {
       }
     }
 
-    // Check if program is actually full (matches register page logic).
-    // Filter on status_id directly — UUID compare, no join into the
-    // status lookup table.
-    const { data: regPrograms } = await admin
-      .from('registration_programs')
-      .select('program_id, registrations!inner(status_id)')
-      .eq('program_id', programId)
-      .neq('registrations.status_id', REGISTRATION_STATUS_CANCELLED);
+    // Check if program is actually full. Uses carts.program_id — the same
+    // approach as the register page enrollment count. registration_programs
+    // is unused/empty and must not be queried here.
+    const { data: enrolledCarts } = await admin
+      .from('registrations')
+      .select('cart_id, carts!inner(program_id)')
+      .eq('carts.program_id', programId)
+      .neq('status_id', REGISTRATION_STATUS_CANCELLED);
 
-    const currentEnrollment = regPrograms?.length || 0;
+    const currentEnrollment = enrolledCarts?.length || 0;
     if (currentEnrollment < program.enrollment_limit) {
       return Response.json({
         error: 'This program still has open spots — please register normally.',
