@@ -25,20 +25,30 @@ export async function POST(request) {
     // by email. This bypasses Supabase's user-enumeration protection on
     // signUp(), which silently succeeds for already-registered emails and
     // would otherwise leave the family staring at "check your email" forever.
-    const admin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
+    //
+    // Guard: if SUPABASE_SERVICE_ROLE_KEY is not configured, skip the
+    // pre-check and fall through to signUp() rather than crashing. The
+    // key is required — add it to your Vercel env vars.
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      console.error('[signup] SUPABASE_SERVICE_ROLE_KEY is not set — skipping duplicate email pre-check');
+    }
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    const { data: existing, error: lookupErr } = await admin.auth.admin.getUserByEmail(normalizedEmail);
+    if (serviceRoleKey) {
+      const admin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        serviceRoleKey,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      );
 
-    if (lookupErr && lookupErr.status !== 404) {
-      // Unexpected error — log and fall through rather than blocking signups entirely
-      console.error('[signup] admin getUserByEmail failed:', lookupErr.message);
-    } else if (existing?.user) {
+      const { data: existing, error: lookupErr } = await admin.auth.admin.getUserByEmail(normalizedEmail);
+
+      if (lookupErr && lookupErr.status !== 404) {
+        // Unexpected error — log and fall through rather than blocking signups entirely
+        console.error('[signup] admin getUserByEmail failed:', lookupErr.message);
+      } else if (existing?.user) {
       const isConfirmed =
         !!existing.user.email_confirmed_at || !!existing.user.confirmed_at;
 
@@ -62,7 +72,8 @@ export async function POST(request) {
         },
         { status: 409 }
       );
-    }
+      }
+    } // end if (serviceRoleKey)
 
     // ── New account: proceed with normal signUp ──────────────────────────
     // Validate emailRedirectTo against our own origin to prevent open redirects
