@@ -112,6 +112,7 @@ export async function POST(request) {
           family_id:                  familyId,
           participant_id:             item.participantId,
           cart_id:                    cart.id,
+          program_id:                 programId,
           status_id:                  REGISTRATION_STATUS_ACTIVE,
           award_level_id:             awardLevelId,
           registration_number:        regNum,
