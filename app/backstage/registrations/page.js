@@ -85,7 +85,7 @@ export default async function RegistrationsPage({ searchParams }) {
   let filtered = (registrations || []).filter(r => {
     const progId    = r.cart_id ? cartProgramMap[r.cart_id] : null;
     const regStatus = r.registration_statuses?.label;
-    const payStatus = r.payments?.[0]?.payment_statuses?.label;
+    const payStatus = derivePayStatus(r);
 
     if (filterProgram   && progId    !== filterProgram)   return false;
     if (filterRegStatus && regStatus !== filterRegStatus) return false;
@@ -100,7 +100,7 @@ export default async function RegistrationsPage({ searchParams }) {
   };
   filtered.forEach(r => {
     const reg = r.registration_statuses?.label;
-    const pay = r.payments?.[0]?.payment_statuses?.label;
+    const pay = derivePayStatus(r);
     if (reg === 'Active')    summary.active++;
     if (reg === 'Pending')   summary.pending++;
     if (reg === 'Cancelled') summary.cancelled++;
@@ -109,6 +109,16 @@ export default async function RegistrationsPage({ searchParams }) {
     if (pay === 'Overdue')   summary.overdue++;
     if (r.is_financial_aid_requested) summary.fa++;
   });
+
+  function derivePayStatus(r) {
+    const paid  = parseFloat(r.amount_paid) || 0;
+    const total = parseFloat(r.total_fee)   || 0;
+    if (paid >= total && total > 0) return 'Paid';
+    const hasOverdue = (r.payments || []).some(
+      p => p.payment_statuses?.label?.toLowerCase() === 'overdue'
+    );
+    return hasOverdue ? 'Overdue' : 'Pending';
+  }
 
   function getGrade(yog) {
     return gradeLevels?.find(g => g.yog === yog)?.label || `YOG ${yog}`;
@@ -230,7 +240,7 @@ export default async function RegistrationsPage({ searchParams }) {
           const progId    = reg.cart_id ? cartProgramMap[reg.cart_id] : null;
           const progLabel = programs?.find(pr => pr.id === progId)?.label || '—';
           const regStatus = reg.registration_statuses?.label || 'Pending';
-          const payStatus = reg.payments?.[0]?.payment_statuses?.label || 'Pending';
+          const payStatus = derivePayStatus(reg);
           const balance   = (parseFloat(reg.total_fee) || 0) - (parseFloat(reg.amount_paid) || 0);
 
           return (

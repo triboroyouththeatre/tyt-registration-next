@@ -140,7 +140,13 @@ export default function ReportsPage() {
         total_fee:         r.total_fee,
         is_financial_aid_requested: r.is_financial_aid_requested,
         reg_status:        r.registration_statuses?.label || '',
-        pay_status:        r.payments?.[0]?.payment_statuses?.label || '',
+        pay_status: (() => {
+          const paid  = parseFloat(r.amount_paid) || 0;
+          const total = parseFloat(r.total_fee)   || 0;
+          if (paid >= total && total > 0) return 'Paid';
+          const hasOverdue = (r.payments || []).some(p => p.payment_statuses?.label?.toLowerCase() === 'overdue');
+          return hasOverdue ? 'Overdue' : 'Pending';
+        })(),
         program_label:     r.carts?.programs?.label || '',
         academic_flag:     h.academic_flag    || false,
         academic_notes:    h.academic_notes   || '',

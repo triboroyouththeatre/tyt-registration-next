@@ -227,7 +227,13 @@ export default function ParticipantDetailPage() {
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#9ca3af', fontStyle: 'italic' }}>No registrations.</p>
             ) : registrations.map(r => {
               const regStatus = r.registration_statuses?.label;
-              const payStatus = r.payments?.[0]?.payment_statuses?.label;
+              const payStatus = (() => {
+                const paid  = parseFloat(r.amount_paid) || 0;
+                const total = parseFloat(r.total_fee)   || 0;
+                if (paid >= total && total > 0) return 'Paid';
+                const hasOverdue = (r.payments || []).some(p => p.payment_statuses?.label?.toLowerCase() === 'overdue');
+                return hasOverdue ? 'Overdue' : 'Pending';
+              })();
               const balance   = (parseFloat(r.total_fee) || 0) - (parseFloat(r.amount_paid) || 0);
               const regColor  = regStatus === 'Active' ? '#16a34a' : regStatus === 'Cancelled' ? '#b40000' : '#d97706';
               const payColor  = payStatus === 'Paid'   ? '#16a34a' : payStatus === 'Overdue'  ? '#b40000' : '#d97706';

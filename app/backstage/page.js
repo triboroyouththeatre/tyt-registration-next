@@ -90,13 +90,21 @@ export default async function BackstageDashboard() {
     if (label === 'cancelled') statusCounts.cancelled++;
   });
 
-  // Payment status counts
+  // Payment status counts — derived from amount_paid vs total_fee so that
+  // registrations with multiple payment rows (e.g. deposit + balance) are
+  // counted correctly regardless of which payment row comes first.
   const payStatus = { paid: 0, pending: 0, overdue: 0 };
   (registrations || []).forEach(r => {
-    const label = r.payments?.[0]?.payment_statuses?.label?.toLowerCase();
-    if (label === 'paid')    payStatus.paid++;
-    if (label === 'pending') payStatus.pending++;
-    if (label === 'overdue') payStatus.overdue++;
+    const paid  = parseFloat(r.amount_paid) || 0;
+    const total = parseFloat(r.total_fee)   || 0;
+    // Use the most severe payment_status label across all payments as a
+    // tiebreaker for overdue, but rely on amounts for paid vs pending.
+    const hasOverdue = (r.payments || []).some(
+      p => p.payment_statuses?.label?.toLowerCase() === 'overdue'
+    );
+    if (paid >= total && total > 0) payStatus.paid++;
+    else if (hasOverdue)            payStatus.overdue++;
+    else                            payStatus.pending++;
   });
 
   // Financial totals
@@ -281,7 +289,14 @@ export default async function BackstageDashboard() {
         ) : recentRegs.map((reg, i) => {
           const p         = reg.participants;
           const regStatus = reg.registration_statuses?.label || 'Pending';
-          const payLabel  = reg.payments?.[0]?.payment_statuses?.label || 'Pending';
+          const amtPaid   = parseFloat(reg.amount_paid) || 0;
+          const totalFee  = parseFloat(reg.total_fee)   || 0;
+          const hasOverdue = (reg.payments || []).some(
+            p => p.payment_statuses?.label?.toLowerCase() === 'overdue'
+          );
+          const payLabel  = amtPaid >= totalFee && totalFee > 0
+            ? 'Paid'
+            : hasOverdue ? 'Overdue' : 'Pending';
           const balance   = (parseFloat(reg.total_fee) || 0) - (parseFloat(reg.amount_paid) || 0);
           const regColor  = regStatus === 'Active' ? '#16a34a' : regStatus === 'Cancelled' ? '#b40000' : '#d97706';
           const payColor  = payLabel  === 'Paid'   ? '#16a34a' : payLabel   === 'Overdue'  ? '#b40000' : '#d97706';
