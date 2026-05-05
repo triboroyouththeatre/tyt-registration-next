@@ -153,6 +153,7 @@ export default function AgreementsPage() {
   const [program, setProgram]         = useState(null);
   const [scrolledDocs, setScrolledDocs] = useState({}); // { [docId]: true }
   const [signatureName, setSignatureName] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [error, setError]     = useState('');
   const [saving, setSaving]   = useState(false);
 
@@ -161,27 +162,40 @@ export default function AgreementsPage() {
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient();
-      const [{ data: docs }, { data: p }, { data: prog }, draft] = await Promise.all([
-        supabase.from('policy_documents').select('id, type, content').eq('is_current', true),
-        supabase.from('participants').select('first_name, last_name').eq('id', participantId).single(),
-        supabase.from('programs').select('label, sessions(name, seasons(display_name, name))').eq('id', programId).single(),
-        fetchDraft(programId, participantId),
-      ]);
+      try {
+        const supabase = createClient();
+        const [{ data: docs, error: docsErr }, { data: p }, { data: prog }, draft] = await Promise.all([
+          supabase.from('policy_documents').select('id, type, content').eq('is_current', true),
+          supabase.from('participants').select('first_name, last_name').eq('id', participantId).single(),
+          supabase.from('programs').select('label, sessions(name, seasons(display_name, name))').eq('id', programId).single(),
+          fetchDraft(programId, participantId),
+        ]);
 
-      const ordered = DOC_ORDER.map(type => docs?.find(d => d.type === type)).filter(Boolean);
-      setDocuments(ordered);
-      setParticipant(p);
-      setProgram(prog);
+        if (docsErr) throw new Error('Could not load policy documents.');
 
-      // Pre-fill signature from existing draft if one exists
-      if (draft?.agreements_data) {
-        const parsed = draft.agreements_data;
-        if (parsed[0]?.agreed_by) setSignatureName(parsed[0].agreed_by);
-        // Mark all docs as scrolled if previously signed
-        const allScrolledState = {};
-        ordered.forEach(d => { allScrolledState[d.id] = true; });
-        setScrolledDocs(allScrolledState);
+        const ordered = DOC_ORDER.map(type => docs?.find(d => d.type === type)).filter(Boolean);
+
+        if (ordered.length === 0) {
+          setLoadError('The policy documents could not be loaded. Please contact us at registration@triboroyouththeatre.org to complete your registration.');
+          return;
+        }
+
+        setDocuments(ordered);
+        setParticipant(p);
+        setProgram(prog);
+
+        // Pre-fill signature from existing draft if one exists
+        if (draft?.agreements_data) {
+          const parsed = draft.agreements_data;
+          if (parsed[0]?.agreed_by) setSignatureName(parsed[0].agreed_by);
+          // Mark all docs as scrolled if previously signed
+          const allScrolledState = {};
+          ordered.forEach(d => { allScrolledState[d.id] = true; });
+          setScrolledDocs(allScrolledState);
+        }
+      } catch (err) {
+        console.error('[AgreementsPage] load error:', err);
+        setLoadError('Could not load registration documents. Please refresh and try again.');
       }
     }
     load();
@@ -276,7 +290,13 @@ export default function AgreementsPage() {
 
       <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
         <form onSubmit={handleSubmit}>
-          {error && <div className="tyt-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+          {loadError && (
+            <div>
+              <div className="tyt-error" style={{ marginBottom: '1rem' }}>{loadError}</div>
+              <a href="/register" className="tyt-btn tyt-btn-secondary" style={{ display: 'inline-flex', marginBottom: '1rem' }}>← Back to Programs</a>
+            </div>
+          )}
+          {!loadError && error && <div className="tyt-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
           {/* Context banner */}
           {participant && program && (

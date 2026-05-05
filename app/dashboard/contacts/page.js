@@ -222,8 +222,10 @@ export default function ContactsPage() {
   async function loadData() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { window.location.href = '/login'; return; }
     setAccountEmail(user.email || '');
     const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
+    if (!profile?.family_id) { window.location.href = '/login'; return; }
 
     const [{ data: contactData }, { data: relData }, { data: participantData }] = await Promise.all([
       supabase.from('contacts').select('*, relationships(label)').eq('family_id', profile.family_id).order('priority'),

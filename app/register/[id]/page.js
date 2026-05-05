@@ -76,6 +76,7 @@ function HealthForm({ programId }) {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [participant, setParticipant] = useState(null);
   const [program, setProgram] = useState(null);
   const [awardLevels, setAwardLevels] = useState([]);
@@ -93,22 +94,26 @@ function HealthForm({ programId }) {
     let cancelled = false;
 
     async function load() {
-      if (!participantId) return;
-      const supabase = createClient();
+      if (!participantId) {
+        setLoadError('Missing participant information. Please start your registration from the program list.');
+        return;
+      }
+      try {
+        const supabase = createClient();
 
-      // Parallelize the independent reads — supabase queries plus the
-      // server-side draft fetch.
-      const [{ data: p }, { data: prog }, { data: awards }, draft] = await Promise.all([
-        supabase.from('participants').select('first_name, last_name').eq('id', participantId).single(),
-        supabase.from('programs').select('label, sessions(name, seasons(display_name, name))').eq('id', programId).single(),
-        supabase.from('award_levels').select('id, label, show_count').order('show_count'),
-        fetchDraft(programId, participantId),
-      ]);
-      if (cancelled) return;
+        // Parallelize the independent reads — supabase queries plus the
+        // server-side draft fetch.
+        const [{ data: p }, { data: prog }, { data: awards }, draft] = await Promise.all([
+          supabase.from('participants').select('first_name, last_name').eq('id', participantId).single(),
+          supabase.from('programs').select('label, sessions(name, seasons(display_name, name))').eq('id', programId).single(),
+          supabase.from('award_levels').select('id, label, show_count').order('show_count'),
+          fetchDraft(programId, participantId),
+        ]);
+        if (cancelled) return;
 
-      setParticipant(p);
-      setProgram(prog);
-      setAwardLevels(awards || []);
+        setParticipant(p);
+        setProgram(prog);
+        setAwardLevels(awards || []);
 
       // Validate waitlist token if present in URL
       if (waitlistToken) {
@@ -162,6 +167,11 @@ function HealthForm({ programId }) {
           general_comments:          parsed.general_comments          || '',
         });
         if (parsed.medical_authorization) setMedicalAuth(true);
+      }
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[HealthForm] load error:', err);
+        setLoadError('Could not load registration details. Please refresh and try again.');
       }
     }
     load();
@@ -235,6 +245,16 @@ function HealthForm({ programId }) {
   }
 
   const seasonDisplay = program?.sessions?.seasons?.display_name || program?.sessions?.seasons?.name;
+
+  // If data failed to load, show an error instead of an empty form
+  if (loadError) {
+    return (
+      <div>
+        <div className="tyt-error" style={{ marginBottom: '1rem' }}>{loadError}</div>
+        <a href="/register" className="tyt-btn tyt-btn-secondary" style={{ display: 'inline-flex' }}>← Back to Programs</a>
+      </div>
+    );
+  }
 
   // If a token was supplied but failed validation, block the form entirely
   if (tokenChecked && waitlistToken && !tokenValid) {

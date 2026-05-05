@@ -266,13 +266,20 @@ Triboro Youth Theatre \u00B7 <a href="https://triboroyouththeatre.org" style="co
 </body>
 </html>`;
 
-    await resend.emails.send({
+    const { error: emailError } = await resend.emails.send({
       from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
       to:      recipients,
       bcc:     'admin@triboroyouththeatre.org',
       subject,
       html:    wrappedHtml,
     });
+
+    if (emailError) {
+      // Log the failure but do NOT return a 500 — the registration was saved
+      // successfully. Staff can resend from backstage if needed.
+      console.error('[send-confirmation] Resend error:', emailError);
+      return Response.json({ success: true, emailWarning: 'Registration saved, but confirmation email could not be sent.' });
+    }
 
     return Response.json({ success: true });
 

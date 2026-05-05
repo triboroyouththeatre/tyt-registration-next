@@ -166,7 +166,7 @@ export default function PaymentPage() {
   const programId = params?.id;
   const participantId = searchParams?.get('participant');
 
-  const [status, setStatus] = useState('amount');
+  const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
   const [cartItems, setCartItems] = useState([]);
   const [programData, setProgramData] = useState(null);
@@ -174,6 +174,7 @@ export default function PaymentPage() {
   const [maxPayment, setMaxPayment] = useState(0);
   const [inputValue, setInputValue] = useState('');
   const [amountError, setAmountError] = useState('');
+  const [confirming, setConfirming] = useState(false);
   const [confirmedAmount, setConfirmedAmount] = useState(0);
   const [confirmedFee, setConfirmedFee] = useState(0);
   const [confirmedTotal, setConfirmedTotal] = useState(0);
@@ -233,6 +234,7 @@ export default function PaymentPage() {
       setMaxPayment(totalFee);
       setInputValue(totalDeposit.toFixed(2));
       setProgramData({ balance_due_date: prog.balance_due_date });
+      setStatus('amount');
     }
     load();
   }, [programId]);
@@ -249,6 +251,7 @@ export default function PaymentPage() {
     const fee = amount * FEE_RATE;
     const total = amount + fee;
     setConfirmedAmount(amount); setConfirmedFee(fee); setConfirmedTotal(total);
+    setConfirming(true);
     try {
       const res = await fetch('/api/create-payment-intent', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -258,7 +261,11 @@ export default function PaymentPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to initialize payment');
       setClientSecret(data.clientSecret); setStripeCustomerId(data.stripeCustomerId);
       setStatus('checkout');
-    } catch (err) { setAmountError(err.message); }
+    } catch (err) {
+      setAmountError(err.message);
+    } finally {
+      setConfirming(false);
+    }
   }
 
   const stripeAppearance = { theme: 'night', variables: { colorPrimary: '#e0bf5c', colorBackground: '#1c1c1c', colorText: '#ffffff', colorDanger: '#b40000', fontFamily: 'DM Sans, sans-serif', borderRadius: '6px' } };
@@ -277,6 +284,12 @@ export default function PaymentPage() {
       <WizardStepper currentStep={4} />
 
       <main style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+
+        {status === 'loading' && (
+          <div style={{ textAlign: 'center', padding: '4rem', fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--text-muted)' }}>
+            Loading payment details...
+          </div>
+        )}
 
         {status === 'error' && (
           <div>
@@ -345,7 +358,9 @@ export default function PaymentPage() {
               )}
             </div>
 
-            <button onClick={handleConfirmAmount} className="tyt-btn tyt-btn-primary tyt-btn-full">Continue to Payment →</button>
+            <button onClick={handleConfirmAmount} disabled={confirming} className="tyt-btn tyt-btn-primary tyt-btn-full">
+              {confirming ? 'Preparing...' : 'Continue to Payment →'}
+            </button>
           </>
         )}
 

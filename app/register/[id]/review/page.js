@@ -215,18 +215,15 @@ export default function ReviewPage() {
     // Persist financial_aid choice to this participant's draft.
     // The draft must already exist (created in step 1) — we're just
     // updating the financial_aid flag.
-    try {
-      await saveDraft({
-        programId,
-        participantId,
-        current_step: 3,
-        financial_aid: financialAid,
-      });
-    } catch (err) {
-      // Non-fatal — the financialAid choice will fall back to the existing
-      // draft value (false by default) at payment time.
-      console.error('[ReviewPage] saveToCart draft update failed:', err);
-    }
+    // Allow errors to propagate so handleProceedToPayment can catch
+    // them and show a user-visible message instead of silently proceeding
+    // with stale data.
+    await saveDraft({
+      programId,
+      participantId,
+      current_step: 3,
+      financial_aid: financialAid,
+    });
     const newCart = [...otherCartItems, currentItem];
     setCartItems(newCart);
   }
@@ -247,8 +244,14 @@ export default function ReviewPage() {
       return;
     }
     setSubmitting(true);
-    await saveToCart();
-    router.push(`/register/${programId}/payment?participant=${participantId}`);
+    try {
+      await saveToCart();
+      router.push(`/register/${programId}/payment?participant=${participantId}`);
+    } catch (err) {
+      console.error('[ReviewPage] handleProceedToPayment error:', err);
+      setActionError('Could not save your progress. Please check your connection and try again.');
+      setSubmitting(false);
+    }
   }
 
   const backHref = programId && participantId && programId !== 'undefined'
@@ -363,7 +366,7 @@ export default function ReviewPage() {
                           {new Date(agreementData[0].agreed_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}
                         </span>
                       </div>
-                      {agreementData[0].ip_address && agreementData[0].ip_address !== 'unknown' && (
+                      {agreementData[0].ip_address && agreementData[0].ip_address !== 'unknown' && agreementData[0].ip_address !== 'captured-server-side' && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
                           <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', flexShrink: 0 }}>IP Address</span>
                           <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{agreementData[0].ip_address}</span>

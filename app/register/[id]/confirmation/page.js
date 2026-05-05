@@ -47,8 +47,10 @@ export default function ConfirmationPage() {
         const supabase = createClient();
 
         const { data: { user } } = await supabase.auth.getUser();
-        const { data: profile }  = await supabase
+        if (!user) throw new Error('Session expired. Please sign in again.');
+        const { data: profile } = await supabase
           .from('profiles').select('family_id').eq('id', user.id).single();
+        if (!profile?.family_id) throw new Error('Could not load your profile.');
 
         // Fetch program and season separately
         const { data: prog } = await supabase
