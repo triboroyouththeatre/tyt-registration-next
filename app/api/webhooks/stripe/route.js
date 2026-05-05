@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
+import {
+  REGISTRATION_STATUS_ACTIVE,
+  PAYMENT_STATUS_PAID,
+  PAYMENT_STATUS_OVERDUE,
+} from '@/lib/constants';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -7,11 +12,6 @@ const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-
-// Status IDs
-const REGISTRATION_STATUS_ACTIVE   = 'd3ae5075-819c-41e2-a685-bbfaea5171b1';
-const PAYMENT_STATUS_PAID          = '7009f776-f127-4f74-8c48-0efec65316a8';
-const PAYMENT_STATUS_OVERDUE       = '62d6b52c-e975-4701-b82a-0873d2cf6343';
 
 export async function POST(request) {
   const body      = await request.text();

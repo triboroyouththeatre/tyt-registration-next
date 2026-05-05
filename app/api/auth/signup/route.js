@@ -33,47 +33,37 @@ export async function POST(request) {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    const { data: lookup, error: lookupErr } = await admin.auth.admin.listUsers({
-      // listUsers supports a server-side email filter; we still verify the
-      // match below in case of pagination quirks.
-      page: 1,
-      perPage: 200,
-    });
+    // Direct email lookup — no pagination cap unlike listUsers.
+    const { data: lookup, error: lookupErr } = await admin.auth.admin.getUserByEmail(normalizedEmail);
 
-    if (lookupErr) {
-      // If the lookup itself fails, fall through to signUp() rather than
-      // blocking signups entirely. We log this on the server.
-      console.error('[signup] admin listUsers failed:', lookupErr.message);
-    } else {
-      const existing = lookup?.users?.find(
-        u => (u.email || '').toLowerCase() === normalizedEmail
-      );
+    if (lookupErr && lookupErr.status !== 404) {
+      // Non-404 error means the lookup itself failed — fall through to signUp()
+      // rather than blocking signups entirely.
+      console.error('[signup] admin getUserByEmail failed:', lookupErr.message);
+    } else if (lookup?.user) {
+      const existing = lookup.user;
+      const isConfirmed =
+        !!existing.email_confirmed_at || !!existing.confirmed_at;
 
-      if (existing) {
-        const isConfirmed =
-          !!existing.email_confirmed_at || !!existing.confirmed_at;
-
-        if (isConfirmed) {
-          return NextResponse.json(
-            {
-              error: 'An account with this email already exists.',
-              code: 'already_registered',
-            },
-            { status: 409 }
-          );
-        }
-
-        // Exists but not yet confirmed. Surface a distinct code so the UI
-        // can offer a resend-confirmation path instead of a sign-in link.
+      if (isConfirmed) {
         return NextResponse.json(
           {
-            error:
-              'An account with this email was started but not yet confirmed. Please check your email for the confirmation link, or use Forgot Password to reset it.',
-            code: 'unconfirmed',
+            error: 'An account with this email already exists.',
+            code: 'already_registered',
           },
           { status: 409 }
         );
       }
+
+      // Exists but not yet confirmed.
+      return NextResponse.json(
+        {
+          error:
+            'An account with this email was started but not yet confirmed. Please check your email for the confirmation link, or use Forgot Password to reset it.',
+          code: 'unconfirmed',
+        },
+        { status: 409 }
+      );
     }
 
     // ── New account: proceed with normal signUp ──────────────────────────

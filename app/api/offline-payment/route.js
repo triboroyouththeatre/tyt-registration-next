@@ -3,11 +3,11 @@ import { createClient as createAdminClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
+import { PAYMENT_STATUS_PAID } from '@/lib/constants';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend  = new Resend(process.env.RESEND_API_KEY);
-
-const PAYMENT_STATUS_PAID = '7009f776-f127-4f74-8c48-0efec65316a8';
+const FEE_RATE = 0.05;
 
 // Payment type IDs
 const PAYMENT_TYPE_MAP = {
@@ -129,32 +129,51 @@ export async function POST(request) {
             // Partial payment — void old invoice and create new one for remaining balance
             await stripe.invoices.voidInvoice(reg.stripe_invoice_id);
 
-            // Get Stripe customer ID
+            // Get Stripe customer ID and program due date
             const { data: fam } = await admin.from('families').select('stripe_customer_id').eq('id', reg.family_id).single();
             if (fam?.stripe_customer_id && newBalance > 0) {
-              const progLabel    = reg.carts?.programs?.label || 'Program Balance';
+              const progLabel       = reg.carts?.programs?.label || 'Program Balance';
               const participantName = reg.participants?.nickname
                 ? `${reg.participants.nickname} ${reg.participants.last_name}`
                 : `${reg.participants?.first_name} ${reg.participants?.last_name}`;
 
-              // Create new invoice for remaining balance (no processing fee for offline)
+              // Use the program's balance_due_date, not an arbitrary 30-day window
+              const balanceDueDate = reg.carts?.programs?.balance_due_date;
+              const dueDateUnix = balanceDueDate
+                ? Math.floor(new Date(balanceDueDate + 'T00:00:00').getTime() / 1000)
+                : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // fallback: 30 days
+
+              // Create new invoice with due_date set before finalization
               const newInvoice = await stripe.invoices.create({
-                customer:         fam.stripe_customer_id,
-                auto_advance:     false,
+                customer:          fam.stripe_customer_id,
+                auto_advance:      false,
                 collection_method: 'send_invoice',
-                days_until_due:   30,
-                description:      `Remaining balance \u2014 ${progLabel} (${participantName})`,
+                due_date:          dueDateUnix,
+                description:       `Remaining balance \u2014 ${progLabel} (${participantName})`,
               });
 
+              // Balance line item
               await stripe.invoiceItems.create({
-                customer:  fam.stripe_customer_id,
-                invoice:   newInvoice.id,
-                amount:    Math.round(newBalance * 100),
-                currency:  'usd',
+                customer:    fam.stripe_customer_id,
+                invoice:     newInvoice.id,
+                amount:      Math.round(newBalance * 100),
+                currency:    'usd',
                 description: `Remaining balance \u2014 ${progLabel} (${participantName})`,
               });
 
-              await stripe.invoices.finalizeInvoice(newInvoice.id);
+              // Processing fee line item
+              await stripe.invoiceItems.create({
+                customer:    fam.stripe_customer_id,
+                invoice:     newInvoice.id,
+                amount:      Math.round(newBalance * FEE_RATE * 100),
+                currency:    'usd',
+                description: `Processing fee (5%)`,
+              });
+
+              await stripe.invoices.finalizeInvoice(newInvoice.id, { auto_advance: true });
+
+              // Send the invoice to the customer
+              await stripe.invoices.sendInvoice(newInvoice.id);
 
               // Update registration with new invoice ID
               await admin.from('registrations').update({ stripe_invoice_id: newInvoice.id }).eq('id', registrationId);

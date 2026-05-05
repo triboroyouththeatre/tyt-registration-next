@@ -2,10 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
+import { REGISTRATION_STATUS_CANCELLED } from '@/lib/constants';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-const REGISTRATION_STATUS_CANCELLED = '1878c625-8ce3-472c-b6d1-b84fdb04d90b';
 
 export async function POST(request) {
   try {

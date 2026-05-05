@@ -2,8 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import ProgramList from '@/components/ProgramList';
-
-const REGISTRATION_STATUS_CANCELLED = '1878c625-8ce3-472c-b6d1-b84fdb04d90b';
+import { REGISTRATION_STATUS_CANCELLED } from '@/lib/constants';
 
 export default async function RegisterPage() {
   const supabase = await createClient();

@@ -3,13 +3,14 @@ import { createClient as createAdminClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
 import { renderEmail } from '@/lib/email-render';
+import {
+  REGISTRATION_STATUS_CANCELLED,
+  PAYMENT_STATUS_PAID,
+  PAYMENT_TYPE_REFUND,
+} from '@/lib/constants';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend  = new Resend(process.env.RESEND_API_KEY);
-
-const REGISTRATION_STATUS_CANCELLED = '1878c625-8ce3-472c-b6d1-b84fdb04d90b';
-const PAYMENT_STATUS_PAID           = '7009f776-f127-4f74-8c48-0efec65316a8';
-const PAYMENT_TYPE_REFUND           = '4f51031a-e6ec-464a-9aaa-77279bd09ec9';
 
 function fmt(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount) || 0);

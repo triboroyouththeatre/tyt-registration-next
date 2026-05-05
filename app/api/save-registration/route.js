@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
-
-const REGISTRATION_STATUS_PENDING = '448779d0-8e45-47e1-b653-37d8fb16eb20';
-const PAYMENT_STATUS_PENDING      = '92d4b30c-799e-43ba-83e1-f7989d95f612';
-const AWARD_LEVEL_NO_AWARD        = '386e44d8-0a4d-4462-85f1-adaa8231a287';
-const PAYMENT_TYPE_DEPOSIT        = '57347d8e-8b1f-4beb-8bdd-b706fa9bc5a2';
-const PAYMENT_TYPE_FULL           = '78cdca58-6a51-4a89-9f61-ff2eb1d62faf';
+import {
+  REGISTRATION_STATUS_PENDING,
+  PAYMENT_STATUS_PENDING,
+  PAYMENT_TYPE_DEPOSIT,
+  PAYMENT_TYPE_FULL,
+  AWARD_LEVEL_NO_AWARD,
+} from '@/lib/constants';
 
 export async function POST(request) {
   try {

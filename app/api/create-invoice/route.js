@@ -22,11 +22,20 @@ export async function POST(request) {
       return Response.json({ error: 'Missing invoice data' }, { status: 400 });
     }
 
-    // Create one invoice covering all registrations in the cart
+    // Set due date from program balance_due_date — must be calculated before
+    // finalization since Stripe does not allow updating due_date on a
+    // finalized invoice.
+    const balanceDueDate = registrations[0]?.balanceDueDate;
+    const dueDateUnix = balanceDueDate
+      ? Math.floor(new Date(balanceDueDate + 'T00:00:00').getTime() / 1000)
+      : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // fallback: 30 days
+
+    // Create one invoice covering all registrations in the cart.
+    // due_date is set at creation so it survives finalization.
     const invoice = await stripe.invoices.create({
       customer: stripeCustomerId,
       collection_method: 'send_invoice',
-      days_until_due: 0, // We'll set due date explicitly
+      due_date: dueDateUnix,
       auto_advance: false, // Don't auto-finalize yet — we'll finalize after adding items
       metadata: {
         registration_ids: registrations.map(r => r.registrationId).join(','),
@@ -60,19 +69,9 @@ export async function POST(request) {
       });
     }
 
-    // Set due date from program balance_due_date
-    const balanceDueDate = registrations[0]?.balanceDueDate;
-    const dueDateUnix = balanceDueDate
-      ? Math.floor(new Date(balanceDueDate + 'T00:00:00').getTime() / 1000)
-      : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // fallback: 30 days
-
     // Finalize and send the invoice
     await stripe.invoices.finalizeInvoice(invoice.id, {
       auto_advance: true,
-    });
-
-    await stripe.invoices.update(invoice.id, {
-      due_date: dueDateUnix,
     });
 
     await stripe.invoices.sendInvoice(invoice.id);
