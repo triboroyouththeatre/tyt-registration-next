@@ -13,7 +13,7 @@ const CONTACT_SLOTS = [
   { priority: 4, label: 'Secondary Emergency Contact', required: false, description: 'Additional emergency contact', isGuardian: false },
 ];
 
-function ContactCard({ slot, contact, relationships, familyId, onSaved, allContacts, participants }) {
+function ContactCard({ slot, contact, relationships, familyId, onSaved, allContacts, participants, accountEmail }) {
   const [editing, setEditing] = useState(!contact);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -120,7 +120,7 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved, allConta
               { label: 'Name', value: `${contact.first_name} ${contact.last_name}` },
               slot.isGuardian && { label: 'Relationship', value: relationship?.label || '—' },
               { label: 'Phone', value: fmtPhone(contact.phone) },
-              slot.isGuardian && { label: 'Email', value: contact.email || '—' },
+              slot.isGuardian && { label: 'Email', value: slot.priority === 1 ? (accountEmail || contact.email || '—') : (contact.email || '—') },
             ].filter(Boolean).map(item => (
               <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', flexShrink: 0 }}>{item.label}</span>
@@ -170,7 +170,26 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved, allConta
               )}
             </div>
 
-            {slot.isGuardian && (
+            {slot.isGuardian && slot.priority === 1 && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label className="tyt-label">Email</label>
+                <div style={{
+                  fontFamily: 'var(--font-body)', fontSize: '0.9rem',
+                  color: 'var(--text-muted)',
+                  background: 'var(--bg-hover)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0.5rem 0.75rem',
+                }}>
+                  {accountEmail}
+                </div>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--text-faint)', marginTop: '0.3rem' }}>
+                  This is your account email. To change it, visit{' '}
+                  <a href="/dashboard/account" style={{ color: 'var(--gold)', textDecoration: 'underline' }}>Account Settings</a>.
+                </p>
+              </div>
+            )}
+            {slot.isGuardian && slot.priority !== 1 && (
               <div style={{ marginBottom: '1.25rem' }}>
                 <label className="tyt-label">Email <span style={{ color: 'var(--text-faint)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
                 <input type="email" name="email" value={form.email} onChange={handleChange} className="tyt-input" />
@@ -195,6 +214,7 @@ function ContactCard({ slot, contact, relationships, familyId, onSaved, allConta
 export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [familyId, setFamilyId] = useState(null);
+  const [accountEmail, setAccountEmail] = useState('');
   const [contacts, setContacts] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [relationships, setRelationships] = useState([]);
@@ -202,6 +222,7 @@ export default function ContactsPage() {
   async function loadData() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
+    setAccountEmail(user.email || '');
     const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
 
     const [{ data: contactData }, { data: relData }, { data: participantData }] = await Promise.all([
@@ -258,6 +279,7 @@ export default function ContactsPage() {
             allContacts={contacts}
             participants={participants}
             onSaved={loadData}
+            accountEmail={slot.priority === 1 ? accountEmail : undefined}
           />
         ))}
 
