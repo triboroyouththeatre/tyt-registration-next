@@ -72,7 +72,6 @@ export default function ReportsPage() {
         is_financial_aid_requested, family_id, cart_id,
         participants(first_name, last_name, nickname, yog, date_of_birth, genders(label)),
         registration_statuses(label),
-        payments(payment_statuses(label)),
         carts(program_id, programs(label))
       `)
       .order('registration_number');
@@ -140,7 +139,7 @@ export default function ReportsPage() {
         total_fee:         r.total_fee,
         is_financial_aid_requested: r.is_financial_aid_requested,
         reg_status:        r.registration_statuses?.label || '',
-        pay_status:        r.payments?.[0]?.payment_statuses?.label || '',
+        pay_status:        (() => { const b = (parseFloat(r.total_fee) || 0) - (parseFloat(r.amount_paid) || 0); return b <= 0.01 ? 'Paid' : (parseFloat(r.amount_paid) || 0) > 0 ? 'Partially Paid' : 'Unpaid'; })(),
         program_label:     r.carts?.programs?.label || '',
         academic_flag:     h.academic_flag    || false,
         academic_notes:    h.academic_notes   || '',

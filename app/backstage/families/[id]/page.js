@@ -68,7 +68,6 @@ export default function FamilyDetailPage() {
           id, registration_number, registered_at, amount_paid, total_fee,
           participants(first_name, last_name, nickname),
           registration_statuses(label),
-          payments(payment_statuses(label)),
           carts(programs(label))
         `)
         .eq('family_id', familyId)
@@ -356,10 +355,10 @@ export default function FamilyDetailPage() {
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: '#9ca3af', fontStyle: 'italic' }}>No registrations.</p>
             ) : registrations.map(r => {
               const regStatus = r.registration_statuses?.label;
-              const payStatus = r.payments?.[0]?.payment_statuses?.label;
               const balance   = (parseFloat(r.total_fee) || 0) - (parseFloat(r.amount_paid) || 0);
+              const payStatus = balance <= 0.01 ? 'Paid' : (parseFloat(r.amount_paid) || 0) > 0 ? 'Partially Paid' : 'Unpaid';
               const regColor  = regStatus === 'Active' ? '#16a34a' : regStatus === 'Cancelled' ? '#b40000' : '#d97706';
-              const payColor  = payStatus === 'Paid'   ? '#16a34a' : payStatus === 'Overdue'  ? '#b40000' : '#d97706';
+              const payColor  = payStatus === 'Paid'   ? '#16a34a' : payStatus === 'Unpaid'    ? '#b40000' : '#d97706';
 
               return (
                 <div key={r.id} style={{ padding: '0.75rem 0', borderBottom: '1px solid #f3f4f6' }}>

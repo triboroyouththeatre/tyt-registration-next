@@ -464,10 +464,13 @@ export default function AddParticipantPage() {
           fontWeight: 600,
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
-          color: 'var(--text-muted)',
+          color: 'var(--gold)',
           textDecoration: 'none',
+          border: '1px solid var(--gold)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '0.35rem 0.85rem',
         }}>
-          Back
+          ← Back
         </a>
       </nav>
 

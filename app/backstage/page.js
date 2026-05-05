@@ -45,8 +45,7 @@ export default async function BackstageDashboard() {
       amount_paid, total_fee, is_financial_aid_requested,
       status_id, cart_id,
       participants(first_name, last_name, nickname, yog),
-      registration_statuses(label),
-      payments(status_id, payment_statuses(label))
+      registration_statuses(label)
     `)
     .order('registered_at', { ascending: false });
 
@@ -90,13 +89,14 @@ export default async function BackstageDashboard() {
     if (label === 'cancelled') statusCounts.cancelled++;
   });
 
-  // Payment status counts
-  const payStatus = { paid: 0, pending: 0, overdue: 0 };
+  // Payment status counts — computed from amounts, not payment rows
+  const payStatus = { paid: 0, partial: 0, unpaid: 0 };
   (registrations || []).forEach(r => {
-    const label = r.payments?.[0]?.payment_statuses?.label?.toLowerCase();
-    if (label === 'paid')    payStatus.paid++;
-    if (label === 'pending') payStatus.pending++;
-    if (label === 'overdue') payStatus.overdue++;
+    const balance = (parseFloat(r.total_fee) || 0) - (parseFloat(r.amount_paid) || 0);
+    const paid    = parseFloat(r.amount_paid) || 0;
+    if (balance <= 0.01) payStatus.paid++;
+    else if (paid > 0)   payStatus.partial++;
+    else                 payStatus.unpaid++;
   });
 
   // Financial totals
@@ -230,8 +230,8 @@ export default async function BackstageDashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
             {[
               { label: 'Paid',    value: payStatus.paid,    color: '#16a34a' },
-              { label: 'Pending', value: payStatus.pending, color: '#d97706' },
-              { label: 'Overdue', value: payStatus.overdue, color: '#b40000' },
+              { label: 'Partial', value: payStatus.partial, color: '#d97706' },
+              { label: 'Unpaid',  value: payStatus.unpaid,  color: '#b40000' },
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
                 <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: s.color, margin: 0, lineHeight: 1 }}>{s.value}</p>
@@ -281,10 +281,10 @@ export default async function BackstageDashboard() {
         ) : recentRegs.map((reg, i) => {
           const p         = reg.participants;
           const regStatus = reg.registration_statuses?.label || 'Pending';
-          const payLabel  = reg.payments?.[0]?.payment_statuses?.label || 'Pending';
           const balance   = (parseFloat(reg.total_fee) || 0) - (parseFloat(reg.amount_paid) || 0);
+          const payLabel  = balance <= 0.01 ? 'Paid' : (parseFloat(reg.amount_paid) || 0) > 0 ? 'Partially Paid' : 'Unpaid';
           const regColor  = regStatus === 'Active' ? '#16a34a' : regStatus === 'Cancelled' ? '#b40000' : '#d97706';
-          const payColor  = payLabel  === 'Paid'   ? '#16a34a' : payLabel   === 'Overdue'  ? '#b40000' : '#d97706';
+          const payColor  = payLabel  === 'Paid'   ? '#16a34a' : payLabel   === 'Unpaid'   ? '#b40000' : '#d97706';
 
           return (
             <Link key={reg.id} href={`/backstage/registrations/${reg.id}`} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 90px 130px 130px 100px', borderBottom: i < recentRegs.length - 1 ? '1px solid #e5e7eb' : 'none', textDecoration: 'none', background: i % 2 === 0 ? '#ffffff' : '#fafafa' }}>
