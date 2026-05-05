@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = [
   '/reset-password',
   '/confirm',
   '/auth/callback',
+  '/auth/confirm',
   '/api',
   '/onboarding',
   '/terms',
