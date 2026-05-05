@@ -18,6 +18,7 @@ export default function OnboardingPage() {
     async function load() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = '/login'; return; }
       const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
       setFamilyId(profile?.family_id || null);
     }

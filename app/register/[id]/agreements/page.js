@@ -53,6 +53,22 @@ function DocumentCard({ doc, index, total, onScrolled, scrolled, programId }) {
     }
   }
 
+  // Auto-mark as reviewed if the document content fits without scrolling
+  // (short document on a tall screen). Uses rAF to ensure the DOM has
+  // painted the injected HTML before measuring scrollHeight.
+  useEffect(() => {
+    if (scrolled) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(() => {
+      if (el.scrollHeight <= el.clientHeight + 40) {
+        onScrolled();
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.id, scrolled]);
+
   const borderColor = scrolled ? '#22c55e' : '#b40000';
   const headerBg    = scrolled ? '#0a1a0a' : '#1a0505';
 
@@ -194,15 +210,9 @@ export default function AgreementsPage() {
 
     setSaving(true);
 
-    // Capture IP address and device string for E-SIGN audit record
-    let ipAddress = 'unknown';
-    try {
-      const ipRes = await fetch('https://api.ipify.org?format=json');
-      const ipData = await ipRes.json();
-      ipAddress = ipData.ip || 'unknown';
-    } catch {
-      ipAddress = 'unavailable';
-    }
+    // IP address is captured server-side from x-forwarded-for in
+    // save-registration/route.js — that value is authoritative and overwrites
+    // anything stored here. We only record userAgent client-side.
     const userAgent = navigator.userAgent || 'unknown';
     const signedAt  = new Date().toISOString();
 
@@ -211,7 +221,7 @@ export default function AgreementsPage() {
       type:               d.type,
       agreed_by:          signatureName.trim(),
       agreed_at:          signedAt,
-      ip_address:         ipAddress,
+      ip_address:         'captured-server-side',
       user_agent:         userAgent,
     }));
 

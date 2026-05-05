@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -27,6 +27,9 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
   const router = useRouter();
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  // Ref-based guard prevents double-submit from fast double-tap on mobile
+  // or rapid keyboard activation before React re-renders the disabled state.
+  const submittedRef = useRef(false);
 
   async function saveRegistrations(stripePaymentIntentId) {
     // Re-fetch drafts at save time. This guarantees the data we send to
@@ -84,39 +87,60 @@ function PaymentForm({ cartItems, programId, participantId, paymentAmount, total
   async function handleSubmit(e) {
     e.preventDefault();
     if (!stripe || !elements) return;
+    // Hard guard: if a submission is already in flight, ignore this event.
+    // This covers fast double-tap on mobile and rapid keyboard activation
+    // before React re-renders the disabled button state.
+    if (submittedRef.current) return;
+    submittedRef.current = true;
     setProcessing(true);
     setError('');
 
     const { error: stripeError, paymentIntent } = await stripe.confirmPayment({ elements, redirect: 'if_required' });
 
-    if (stripeError) { setError(stripeError.message); setProcessing(false); return; }
+    if (stripeError) {
+      setError(stripeError.message);
+      setProcessing(false);
+      submittedRef.current = false; // Allow retry after a Stripe-side error
+      return;
+    }
 
     if (paymentIntent.status === 'succeeded') {
       let createdRegs = [];
       try {
         createdRegs = await saveRegistrations(paymentIntent.id);
+        if (!createdRegs.length) throw new Error('No registrations were returned.');
       } catch (dbErr) {
-        console.error('[PaymentForm] DB error:', dbErr.message);
+        // Payment succeeded but our DB save failed. Do NOT delete the draft
+        // (it's the only record of what the family registered for) and do NOT
+        // redirect. Show a recovery message with the payment intent ID so
+        // staff can manually reconcile if needed.
+        console.error('[PaymentForm] DB save failed after successful payment:', dbErr.message);
+        setError(
+          `Your payment was received — but we encountered an error saving your registration. ` +
+          `Please contact us at registration@triboroyouththeatre.org and include this reference: ${paymentIntent.id}. ` +
+          `Do not attempt to register again.`
+        );
+        setProcessing(false);
+        // Leave submittedRef.current = true so the pay button stays disabled —
+        // we do NOT want the family to accidentally pay twice.
+        return;
       }
 
-      // Fire confirmation email — fire-and-forget so it doesn't block the redirect
-      if (createdRegs.length > 0) {
-        const registrationIds = createdRegs.map(r => r.registrationId);
-        fetch('/api/send-confirmation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ registrationIds }),
-        }).catch(err => console.error('[PaymentForm] Confirmation email failed:', err));
-      }
+      // Save succeeded — fire confirmation email fire-and-forget
+      const registrationIds = createdRegs.map(r => r.registrationId);
+      fetch('/api/send-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationIds }),
+      }).catch(err => console.error('[PaymentForm] Confirmation email failed:', err));
 
-      // Consume all drafts for this family + program — they're now real
-      // registrations. Single round-trip DELETE that the API route handles
-      // by omitting the participantId param.
+      // Drafts are now real registrations — safe to delete
       await deleteDraft(programId);
       router.push(`/register/${programId}/confirmation?participant=${cartItems[0]?.participantId}`);
     } else {
       setError('Payment was not completed. Please try again.');
       setProcessing(false);
+      submittedRef.current = false; // Allow retry
     }
   }
 
