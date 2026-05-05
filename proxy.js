@@ -17,7 +17,7 @@ const PUBLIC_ROUTES = [
 
 const ADMIN_ROUTES = ['/admin', '/backstage'];
 
-export async function middleware(request) {
+export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
   // Allow public routes through without any checks
