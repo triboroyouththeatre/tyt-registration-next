@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { REGISTRATION_STATUS_CANCELLED } from '@/lib/constants';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -48,7 +49,8 @@ export async function GET(request) {
         families!inner(email)
       `)
       .eq('is_financial_aid_requested', false)
-      .gt('total_fee', 0);
+      .gt('total_fee', 0)
+      .neq('status_id', REGISTRATION_STATUS_CANCELLED);
 
     if (regErr) throw new Error('Query failed: ' + regErr.message);
 
