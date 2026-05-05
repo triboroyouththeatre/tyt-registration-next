@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import OfflinePaymentCard from '@/components/backstage/OfflinePaymentCard';
+import { fmtPhone } from '@/lib/format';
 
 function fmt(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount) || 0);
@@ -414,7 +415,7 @@ async function reloadPayments() {
                 <Row label="Grade"  value={getGrade(participant?.yog)} />
                 <Row label="Gender" value={participant?.genders?.label} />
                 <Row label="DOB"    value={participant?.date_of_birth ? fmtDateOnly(participant.date_of_birth) : '—'} />
-                {participant?.phone && <Row label="Phone"  value={participant.phone} />}
+                {participant?.phone && <Row label="Phone"  value={fmtPhone(participant.phone)} />}
                 {participant?.email && <Row label="Email"  value={participant.email} />}
               </div>
             )}
@@ -590,7 +591,7 @@ async function reloadPayments() {
                 </span>
               </div>
               {c.relationships?.label && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: '#6b7280', margin: '0 0 0.25rem 0' }}>{c.relationships.label}</p>}
-              {c.phone && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: 0 }}>📞 {c.phone}</p>}
+              {c.phone && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: 0 }}>📞 {fmtPhone(c.phone)}</p>}
               {c.email && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: 0 }}>✉ {c.email}</p>}
             </div>
           ))}
@@ -604,7 +605,7 @@ async function reloadPayments() {
                   <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: 600, color: '#111', margin: '0 0 0.2rem 0' }}>
                     {c.first_name} {c.last_name}
                   </p>
-                  {c.phone && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: 0 }}>📞 {c.phone}</p>}
+                  {c.phone && <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: '#374151', margin: 0 }}>📞 {fmtPhone(c.phone)}</p>}
                 </div>
               ))}
             </div>
