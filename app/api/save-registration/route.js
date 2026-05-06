@@ -2,7 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import {
   REGISTRATION_STATUS_PENDING,
-  PAYMENT_STATUS_PENDING,
+  REGISTRATION_STATUS_ACTIVE,
+  PAYMENT_STATUS_PAID,
+  PAYMENT_STATUS_PARTIALLY_PAID,
   PAYMENT_TYPE_DEPOSIT,
   PAYMENT_TYPE_FULL,
   AWARD_LEVEL_NO_AWARD,
@@ -111,6 +113,13 @@ export async function POST(request) {
       const perParticipantFee  = parseFloat(item.fee);
       const awardLevelId       = health?.award_level_id || AWARD_LEVEL_NO_AWARD;
 
+      // A registration is Active as soon as at least $50 has been paid.
+      // Anything below that (e.g. a $0 financial aid placeholder) stays Pending
+      // until manually reviewed by an admin.
+      const registrationStatusId = perParticipantPaid >= 50
+        ? REGISTRATION_STATUS_ACTIVE
+        : REGISTRATION_STATUS_PENDING;
+
       // Generate registration number
       const { data: regNum, error: regNumErr } = await admin.rpc('generate_registration_number');
       if (regNumErr) throw new Error('Reg number: ' + regNumErr.message);
@@ -122,7 +131,7 @@ export async function POST(request) {
           family_id:                  familyId,
           participant_id:             item.participantId,
           cart_id:                    cart.id,
-          status_id:                  REGISTRATION_STATUS_PENDING,
+          status_id:                  registrationStatusId,
           award_level_id:             awardLevelId,
           registration_number:        regNum,
           sig_parent:                 agreements[0]?.agreed_by || '',
@@ -185,7 +194,7 @@ export async function POST(request) {
         family_id:                familyId,
         stripe_payment_intent_id: stripePaymentIntentId,
         amount:                   totalCharged / cartItems.length,
-        status_id:                PAYMENT_STATUS_PENDING,
+        status_id:                isFullPayment ? PAYMENT_STATUS_PAID : PAYMENT_STATUS_PARTIALLY_PAID,
         type_id:                  paymentTypeId,
         paid_at:                  new Date().toISOString(),
       });
