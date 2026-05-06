@@ -277,7 +277,6 @@ Triboro Youth Theatre \u00B7 <a href="https://triboroyouththeatre.org" style="co
     await resend.emails.send({
       from:    'TYT Family Portal <noreply@triboroyouththeatre.org>',
       to:      family.email,
-      bcc:     'admin@triboroyouththeatre.org',
       subject,
       html:    wrappedHtml,
     });
